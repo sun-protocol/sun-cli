@@ -45,7 +45,7 @@
     "@bankofai/sun-kit": "^1.1.0",
     "@scure/bip32": "^2.0.1",
     "@scure/bip39": "^2.0.1",
-    "chalk": "^4.1.2",
+    "chalk": "^5.6.2",
     "cli-table3": "^0.6.5",
     "commander": "^12.1.0",
     "dotenv": "^16.4.5",
