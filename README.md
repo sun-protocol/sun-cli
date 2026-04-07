@@ -945,7 +945,8 @@ Many commands accept token symbols in addition to TRON addresses.
 | `WTRX` | `TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR` | 6 |
 | `USDT` | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | 6 |
 | `USDCOLD` | `TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8` | 6 |
-| `USDD` | `TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn` | 18 |
+| `USDDOLD` | `TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn` | 18 |
+| `USDD`| `TXDk8mbtRbXeYuMNS83CfKPaYYT8XWv9Hz` | 18 |
 | `SUN` | `TSSMHYeV2uE9qYH95DqyoCuNCzEL1NvU3S` | 18 |
 | `JST` | `TCFLL5dx5ZJdKnWuesXxi1VPwjLVmWZZy9` | 18 |
 | `BTT` | `TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4` | 18 |
@@ -957,6 +958,8 @@ Example:
 sun swap TRX USDT 1000000
 sun swap T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t 1000000
 ```
+
+You can find other tokens in [tokenlist](https://sunlists.justnetwork.io/#/detail?uri=https://list.justswap.io/justswap.json)
 
 ## Troubleshooting
 
