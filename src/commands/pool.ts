@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 import { getNetwork } from '../lib/context'
 import { readApiAction } from '../lib/command'
+import { formatUsd, formatPct, formatTime } from '../lib/output'
 import { tryResolveTokenAddress } from '../lib/tokens'
 import { TRX_ADDRESS, WTRX_MAINNET, WTRX_NILE } from '@bankofai/sun-kit'
 
@@ -46,16 +47,16 @@ export function registerPoolCommands(program: Command) {
             sort: opts.sort,
             filterBlackList: opts.blacklist !== false ? undefined : false,
           }),
-        transform: (result: any) => result.data || result,
         tableConfig: {
-          headers: ['Pool', 'Token0', 'Token1', 'Protocol', 'TVL', 'APY'],
+          headers: ['Pool', 'Token0', 'Token1', 'Protocol', 'TVL', 'APR', 'Vol 24h'],
           toRow: (item: any) => [
             item.poolAddress || item.address || '-',
             item.tokenSymbolList?.[0] || item.token0Symbol || '-',
             item.tokenSymbolList?.[1] || item.token1Symbol || '-',
             item.protocol || '-',
-            item.reserveUsd ? `$${Number(item.reserveUsd).toLocaleString()}` : item.tvl || '-',
-            item.totalApr ? `${(item.totalApr * 100).toFixed(2)}%` : item.apy || '-',
+            formatUsd(item.reserveUsd ?? item.tvl),
+            formatPct(item.totalApr ?? item.apr ?? item.apy),
+            formatUsd(item.volume24h ?? item.vol24h),
           ],
         },
       })
@@ -78,15 +79,15 @@ export function registerPoolCommands(program: Command) {
             pageNo: parseInt(opts.page),
             pageSize: parseInt(opts.pageSize),
           }),
-        transform: (result: any) => result.data || result,
         tableConfig: {
-          headers: ['Pool', 'Token0', 'Token1', 'Protocol', 'TVL'],
+          headers: ['Pool', 'Token0', 'Token1', 'Protocol', 'TVL', 'APR'],
           toRow: (item: any) => [
             item.poolAddress || '-',
             item.tokenSymbolList?.[0] || item.token0Symbol || '-',
             item.tokenSymbolList?.[1] || item.token1Symbol || '-',
             item.protocol || '-',
-            item.reserveUsd ? `$${Number(item.reserveUsd).toLocaleString()}` : item.tvl || '-',
+            formatUsd(item.reserveUsd ?? item.tvl),
+            formatPct(item.totalApr ?? item.apr ?? item.apy),
           ],
         },
       })
@@ -107,15 +108,14 @@ export function registerPoolCommands(program: Command) {
             pageNo: parseInt(opts.page),
             pageSize: parseInt(opts.pageSize),
           }),
-        transform: (result: any) => result.data || result,
         tableConfig: {
-          headers: ['Pool', 'Token0', 'Token1', 'APY', 'TVL'],
+          headers: ['Pool', 'Token0', 'Token1', 'APR', 'TVL'],
           toRow: (item: any) => [
             item.poolAddress || '-',
             item.tokenSymbolList?.[0] || item.token0Symbol || '-',
             item.tokenSymbolList?.[1] || item.token1Symbol || '-',
-            item.totalApr ? `${(item.totalApr * 100).toFixed(2)}%` : item.apy || '-',
-            item.reserveUsd ? `$${Number(item.reserveUsd).toLocaleString()}` : item.tvl || '-',
+            formatPct(item.totalApr ?? item.apr ?? item.apy),
+            formatUsd(item.reserveUsd ?? item.tvl),
           ],
         },
       })
@@ -129,7 +129,14 @@ export function registerPoolCommands(program: Command) {
         spinnerLabel: 'Fetching pool hooks...',
         errorLabel: 'Failed to fetch pool hooks',
         execute: (api) => api.getPoolHooks(),
-        transform: (result: any) => result.data || result,
+        tableConfig: {
+          headers: ['Address', 'Name', 'Description'],
+          toRow: (item: any) => [
+            item.address || item.hookAddress || '-',
+            item.name || '-',
+            item.description || item.desc || '-',
+          ],
+        },
       })
     })
 
@@ -148,12 +155,12 @@ export function registerPoolCommands(program: Command) {
             startDate: opts.start,
             endDate: opts.end,
           }),
-        transform: (result: any) => result.data || result,
         tableConfig: {
-          headers: ['Date', 'Volume'],
+          headers: ['Date', 'Volume', 'Volume USD'],
           toRow: (item: any) => [
-            item.date || item.timestamp || '-',
+            item.date || formatTime(item.timestamp),
             item.volume || item.vol || '-',
+            formatUsd(item.volumeUsd ?? item.volUsd),
           ],
         },
       })
@@ -174,12 +181,12 @@ export function registerPoolCommands(program: Command) {
             startDate: opts.start,
             endDate: opts.end,
           }),
-        transform: (result: any) => result.data || result,
         tableConfig: {
-          headers: ['Date', 'Liquidity'],
+          headers: ['Date', 'Liquidity', 'Liquidity USD'],
           toRow: (item: any) => [
-            item.date || item.timestamp || '-',
+            item.date || formatTime(item.timestamp),
             item.liquidity || item.liq || '-',
+            formatUsd(item.liquidityUsd ?? item.liqUsd ?? item.reserveUsd),
           ],
         },
       })

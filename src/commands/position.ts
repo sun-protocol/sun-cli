@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { readApiAction } from '../lib/command'
+import { formatUsd } from '../lib/output'
 
 export function registerPositionCommands(program: Command) {
   const position = program.command('position').description('Liquidity position queries')
@@ -24,15 +25,30 @@ export function registerPositionCommands(program: Command) {
             pageNo: parseInt(opts.page),
             pageSize: parseInt(opts.pageSize),
           }),
-        transform: (result: any) => result.data || result,
         tableConfig: {
-          headers: ['Pool', 'Protocol', 'Token0', 'Token1', 'Liquidity'],
+          headers: [
+            'Pool',
+            'Protocol',
+            'Token0',
+            'Token1',
+            'Liquidity',
+            'Range',
+            'Token0 Amt',
+            'Token1 Amt',
+            'Value',
+          ],
           toRow: (item: any) => [
             item.poolAddress || '-',
             item.protocol || '-',
             item.token0Symbol || '-',
             item.token1Symbol || '-',
-            item.liquidity || '-',
+            String(item.liquidity ?? '-'),
+            item.tickLower !== undefined && item.tickUpper !== undefined
+              ? `[${item.tickLower}, ${item.tickUpper}]`
+              : '-',
+            String(item.amount0 ?? item.token0Amount ?? '-'),
+            String(item.amount1 ?? item.token1Amount ?? '-'),
+            formatUsd(item.valueUsd ?? item.totalValueUsd),
           ],
         },
       })
@@ -53,7 +69,16 @@ export function registerPositionCommands(program: Command) {
             pageNo: parseInt(opts.page),
             pageSize: parseInt(opts.pageSize),
           }),
-        transform: (result: any) => result.data || result,
+        tableConfig: {
+          headers: ['Owner', 'Token ID', 'Tick Lower', 'Tick Upper', 'Liquidity'],
+          toRow: (item: any) => [
+            item.owner || item.userAddress || '-',
+            String(item.tokenId ?? '-'),
+            String(item.tickLower ?? '-'),
+            String(item.tickUpper ?? '-'),
+            String(item.liquidity ?? '-'),
+          ],
+        },
       })
     })
 }

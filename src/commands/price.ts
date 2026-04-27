@@ -1,15 +1,15 @@
 import { Command } from 'commander'
 import { getNetwork } from '../lib/context'
 import { readApiAction } from '../lib/command'
+import { formatUsd } from '../lib/output'
 import { resolveTokenAddress, getSymbolOrAddress, listKnownSymbols } from '../lib/tokens'
 
-function extractPrice(val: any): string {
-  if (typeof val === 'number') return val.toString()
-  if (typeof val === 'string') return val
-  if (val?.quote?.USD?.price) return val.quote.USD.price
-  if (val?.priceInUsd) return val.priceInUsd
-  if (val?.price) return val.price
-  return JSON.stringify(val)
+function extractPriceUsd(val: any): unknown {
+  if (typeof val === 'number' || typeof val === 'string') return val
+  if (val && typeof val === 'object') {
+    return val.quote?.USD?.price ?? val.priceInUsd ?? val.price ?? null
+  }
+  return null
 }
 
 export function registerPriceCommand(program: Command) {
@@ -42,18 +42,17 @@ export function registerPriceCommand(program: Command) {
         spinnerLabel: 'Fetching prices...',
         errorLabel: 'Failed to get token price',
         execute: (api) => api.getPrice({ tokenAddress }),
-        transform: (result: any) => {
-          const data = result.data || result
+        transform: (data: any) => {
           if (data && typeof data === 'object' && !Array.isArray(data)) {
             return Object.entries(data)
           }
           return data
         },
         tableConfig: {
-          headers: ['Token', 'Price (USD)'],
+          headers: ['Token', 'Address', 'Price (USD)'],
           toRow: ([address, val]: [string, any]) => {
             const symbol = getSymbolOrAddress(address, network)
-            return [symbol, extractPrice(val)]
+            return [symbol, address, formatUsd(extractPriceUsd(val))]
           },
         },
       })

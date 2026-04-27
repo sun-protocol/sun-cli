@@ -21,11 +21,16 @@ describe('command helpers', () => {
       getApi,
     }))
 
+    const printPaginationFooter = jest.fn()
+    const printKeyValue = jest.fn()
+
     jest.doMock('../../src/lib/output', () => ({
       output,
       outputError,
       withSpinner,
       isJsonMode,
+      printPaginationFooter,
+      printKeyValue,
     }))
 
     jest.doMock('../../src/lib/confirm', () => ({
@@ -38,11 +43,14 @@ describe('command helpers', () => {
       commandModule,
       ensureWallet,
       getKit,
+      getApi,
       output,
       outputError,
       withSpinner,
       confirm,
       printSummary,
+      printPaginationFooter,
+      printKeyValue,
     }
   }
 
@@ -88,5 +96,180 @@ describe('command helpers', () => {
       network: 'shasta',
       tronscanUrl: 'https://shasta.tronscan.org/#/transaction/mainnet-tx',
     })
+  })
+
+  it('extracts txid nested under txResult for explorer link', async () => {
+    const { commandModule, output } = loadCommandModule()
+
+    await commandModule.writeAction({
+      title: 'V3 Mint',
+      summary: { Network: 'mainnet' },
+      confirmMsg: 'Execute?',
+      spinnerLabel: 'Executing...',
+      errorLabel: 'Mint failed',
+      execute: async () => ({
+        txResult: { result: true, txid: 'nested-tx' },
+        computedAmounts: { amount0Desired: '100', amount1Desired: '200' },
+      }),
+    })
+
+    const arg = output.mock.calls[0][0]
+    expect(arg.tronscanUrl).toBe('https://tronscan.org/#/transaction/nested-tx')
+  })
+
+  it('summarizeResult callback receives the enriched result', async () => {
+    const { commandModule, printKeyValue } = loadCommandModule()
+
+    await commandModule.writeAction({
+      title: 'V3 Mint',
+      summary: { Network: 'nile' },
+      confirmMsg: 'Execute?',
+      spinnerLabel: 'Executing...',
+      errorLabel: 'Mint failed',
+      execute: async () => ({
+        txResult: { txid: 'tx1' },
+        computedTicks: { tickLower: -100, tickUpper: 100 },
+      }),
+      summarizeResult: (r: any) => ({
+        'Tick Lower': r.computedTicks.tickLower,
+        Tronscan: r.tronscanUrl,
+      }),
+    })
+
+    expect(printKeyValue).toHaveBeenCalledWith({
+      'Tick Lower': -100,
+      Tronscan: 'https://nile.tronscan.org/#/transaction/tx1',
+    })
+  })
+})
+
+describe('parseApiResponse', () => {
+  beforeEach(() => {
+    jest.resetModules()
+  })
+
+  function loadModule() {
+    jest.doMock('../../src/lib/context', () => ({
+      ensureWallet: jest.fn(),
+      getKit: jest.fn(),
+      getApi: jest.fn(),
+    }))
+    jest.doMock('../../src/lib/output', () => ({
+      output: jest.fn(),
+      outputError: jest.fn(),
+      withSpinner: jest
+        .fn()
+        .mockImplementation(async (_l: string, fn: () => Promise<unknown>) => fn()),
+      isJsonMode: jest.fn().mockReturnValue(false),
+      printPaginationFooter: jest.fn(),
+      printKeyValue: jest.fn(),
+    }))
+    jest.doMock('../../src/lib/confirm', () => ({ confirm: jest.fn(), printSummary: jest.fn() }))
+    return require('../../src/lib/command')
+  }
+
+  it('returns data and pagination from a list-shaped envelope', () => {
+    const { parseApiResponse } = loadModule()
+    const out = parseApiResponse({
+      code: 0,
+      message: 'ok',
+      data: { list: [{ a: 1 }], total: 99, pageNo: 2, pageSize: 20 },
+    })
+    expect(out.data).toEqual({ list: [{ a: 1 }], total: 99, pageNo: 2, pageSize: 20 })
+    expect(out.pagination).toEqual({
+      total: 99,
+      pageNo: 2,
+      pageSize: 20,
+      offset: undefined,
+    })
+  })
+
+  it('throws SunApiError when code is non-zero', () => {
+    const { parseApiResponse } = loadModule()
+    expect(() => parseApiResponse({ code: 1001, message: 'bad' })).toThrow('bad')
+  })
+
+  it('accepts code === 200 as success', () => {
+    const { parseApiResponse } = loadModule()
+    const out = parseApiResponse({ code: 200, data: [1, 2, 3] })
+    expect(out.data).toEqual([1, 2, 3])
+  })
+
+  it('returns raw value when there is no envelope', () => {
+    const { parseApiResponse } = loadModule()
+    const out = parseApiResponse({ foo: 'bar' })
+    expect(out.data).toEqual({ foo: 'bar' })
+    expect(out.pagination).toBeUndefined()
+  })
+})
+
+describe('readApiAction parsing', () => {
+  beforeEach(() => {
+    jest.resetModules()
+  })
+
+  function loadModule() {
+    const output = jest.fn()
+    const outputError = jest.fn()
+    const printPaginationFooter = jest.fn()
+    const getApi = jest.fn()
+    jest.doMock('../../src/lib/context', () => ({
+      ensureWallet: jest.fn(),
+      getKit: jest.fn(),
+      getApi,
+    }))
+    jest.doMock('../../src/lib/output', () => ({
+      output,
+      outputError,
+      withSpinner: jest
+        .fn()
+        .mockImplementation(async (_l: string, fn: () => Promise<unknown>) => fn()),
+      isJsonMode: jest.fn().mockReturnValue(false),
+      printPaginationFooter,
+      printKeyValue: jest.fn(),
+    }))
+    jest.doMock('../../src/lib/confirm', () => ({ confirm: jest.fn(), printSummary: jest.fn() }))
+    return { mod: require('../../src/lib/command'), output, outputError, printPaginationFooter }
+  }
+
+  it('unwraps data and forwards pagination footer', async () => {
+    const { mod, output, printPaginationFooter } = loadModule()
+
+    await mod.readApiAction({
+      spinnerLabel: 'Loading...',
+      errorLabel: 'Failed',
+      execute: async () => ({
+        code: 0,
+        data: { list: [{ id: 1 }], total: 5, pageNo: 1, pageSize: 10 },
+      }),
+    })
+
+    expect(output).toHaveBeenCalledWith(
+      { list: [{ id: 1 }], total: 5, pageNo: 1, pageSize: 10 },
+      undefined,
+    )
+    expect(printPaginationFooter).toHaveBeenCalledWith({
+      total: 5,
+      pageNo: 1,
+      pageSize: 10,
+      offset: undefined,
+    })
+  })
+
+  it('reports api errors via outputError', async () => {
+    const { mod, output, outputError } = loadModule()
+
+    await mod.readApiAction({
+      spinnerLabel: 'Loading...',
+      errorLabel: 'Failed',
+      execute: async () => ({ code: 500, message: 'server error' }),
+    })
+
+    expect(output).not.toHaveBeenCalled()
+    expect(outputError).toHaveBeenCalled()
+    const [label, err] = outputError.mock.calls[0]
+    expect(label).toBe('Failed')
+    expect(err.message).toBe('server error')
+    expect(err.code).toBe('API_ERROR')
   })
 })
