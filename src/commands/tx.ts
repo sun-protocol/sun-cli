@@ -33,12 +33,12 @@ export function registerTxCommands(program: Command) {
         tableConfig: {
           headers: ['Time', 'Type', 'Token0', 'Token1', 'Amount0', 'Amount1', 'TxID'],
           toRow: (item: any) => [
-            formatTime(item.timestamp ?? item.time),
+            formatTime(item.timestamp ?? item.time ?? item.swapTime),
             item.type || '-',
-            item.token0Symbol || '-',
-            item.token1Symbol || '-',
-            String(item.amount0 ?? '-'),
-            String(item.amount1 ?? '-'),
+            item.token0Symbol || item.tokenSymbolList?.[0] || '-',
+            item.token1Symbol || item.tokenSymbolList?.[1] || '-',
+            String(item.amount0 ?? item.tokenAmountList?.[0] ?? '-'),
+            String(item.amount1 ?? item.tokenAmountList?.[1] ?? '-'),
             (item.txId || item.transactionId || '-').toString().slice(0, 16) + '...',
           ],
         },

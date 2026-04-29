@@ -1,6 +1,5 @@
 import { Command } from 'commander'
 import { readApiAction } from '../lib/command'
-import { formatUsd, formatPct } from '../lib/output'
 
 export function registerPairCommands(program: Command) {
   const pair = program.command('pair').description('Token pair information')
@@ -24,16 +23,14 @@ export function registerPairCommands(program: Command) {
             pageSize: parseInt(opts.pageSize),
           }),
         tableConfig: {
-          headers: ['Pool', 'Token0', 'Token1', 'Protocol', 'Fee', 'TVL', 'Volume 24h', 'APR'],
+          headers: ['Base', 'Quote', 'Protocol', 'Price', 'Base Vol 1d', 'Quote Vol 1d'],
           toRow: (item: any) => [
-            item.poolAddress || item.pairAddress || '-',
-            item.token0Symbol || '-',
-            item.token1Symbol || '-',
+            item.baseSymbol || item.token0Symbol || '-',
+            item.quoteSymbol || item.token1Symbol || '-',
             item.protocol || '-',
-            item.fee !== undefined ? String(item.fee) : '-',
-            formatUsd(item.tvl ?? item.reserveUsd ?? item.liquidity),
-            formatUsd(item.volume24h ?? item.vol24h),
-            formatPct(item.totalApr ?? item.apr ?? item.apy),
+            item.price ?? '-',
+            String(item.baseAmountVol1d ?? '-'),
+            String(item.quoteAmountVol1d ?? '-'),
           ],
         },
       })

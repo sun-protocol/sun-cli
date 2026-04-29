@@ -56,7 +56,7 @@ export function registerPoolCommands(program: Command) {
             item.protocol || '-',
             formatUsd(item.reserveUsd ?? item.tvl),
             formatPct(item.totalApr ?? item.apr ?? item.apy),
-            formatUsd(item.volume24h ?? item.vol24h),
+            formatUsd(item.volume24h ?? item.vol24h ?? item.volumeUsd1d),
           ],
         },
       })
@@ -130,11 +130,11 @@ export function registerPoolCommands(program: Command) {
         errorLabel: 'Failed to fetch pool hooks',
         execute: (api) => api.getPoolHooks(),
         tableConfig: {
-          headers: ['Address', 'Name', 'Description'],
+          headers: ['Address', 'Name', 'Docs'],
           toRow: (item: any) => [
-            item.address || item.hookAddress || '-',
-            item.name || '-',
-            item.description || item.desc || '-',
+            item.address || item.hookAddress || item.hooksAddress || '-',
+            item.name || item.hooksName || '-',
+            item.description || item.desc || item.hooksDocUrlEn || '-',
           ],
         },
       })
@@ -156,11 +156,12 @@ export function registerPoolCommands(program: Command) {
             endDate: opts.end,
           }),
         tableConfig: {
-          headers: ['Date', 'Volume', 'Volume USD'],
+          headers: ['Date', 'Volume USD', 'Fees USD', 'Tx Count'],
           toRow: (item: any) => [
-            item.date || formatTime(item.timestamp),
-            item.volume || item.vol || '-',
-            formatUsd(item.volumeUsd ?? item.volUsd),
+            item.date || formatTime(item.timestamp ?? item.time),
+            formatUsd(item.volumeUsd ?? item.volUsd ?? item.totalVolumeUsd),
+            formatUsd(item.feeUsd ?? item.totalFeeUsd),
+            String(item.transactions ?? item.totalTransactions ?? '-'),
           ],
         },
       })
@@ -182,11 +183,10 @@ export function registerPoolCommands(program: Command) {
             endDate: opts.end,
           }),
         tableConfig: {
-          headers: ['Date', 'Liquidity', 'Liquidity USD'],
+          headers: ['Date', 'Liquidity USD'],
           toRow: (item: any) => [
-            item.date || formatTime(item.timestamp),
-            item.liquidity || item.liq || '-',
-            formatUsd(item.liquidityUsd ?? item.liqUsd ?? item.reserveUsd),
+            item.date || formatTime(item.timestamp ?? item.time),
+            formatUsd(item.liquidityUsd ?? item.liqUsd ?? item.reserveUsd ?? item.value),
           ],
         },
       })

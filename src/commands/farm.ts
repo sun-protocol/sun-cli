@@ -22,16 +22,15 @@ export function registerFarmCommands(program: Command) {
             pageSize: parseInt(opts.pageSize),
           }),
         tableConfig: {
-          headers: ['Farm', 'Token0', 'Token1', 'Reward', 'APR', 'TVL', 'Start', 'End'],
+          headers: ['Farm', 'Name', 'Type', 'Stake Token', 'Reward Token', 'APY', 'TVL'],
           toRow: (item: any) => [
             item.farmAddress || item.address || '-',
-            item.token0Symbol || '-',
-            item.token1Symbol || '-',
+            item.farmName || '-',
+            item.farmType || '-',
+            item.stakeTokenSymbol || item.token0Symbol || '-',
             item.rewardTokenSymbol || item.rewardSymbol || '-',
-            formatPct(item.apr ?? item.apy),
-            formatUsd(item.tvl ?? item.tvlUsd),
-            formatTime(item.startTime),
-            formatTime(item.endTime),
+            formatPct(item.apy ?? item.apr),
+            formatUsd(item.totalLockedUsd ?? item.tvl ?? item.tvlUsd),
           ],
         },
       })
@@ -64,11 +63,11 @@ export function registerFarmCommands(program: Command) {
         tableConfig: {
           headers: ['Time', 'Type', 'Farm', 'Owner', 'Amount', 'TxID'],
           toRow: (item: any) => [
-            formatTime(item.timestamp ?? item.time),
+            formatTime(item.timestamp ?? item.time ?? item.swapTime),
             item.type || item.farmTxType || '-',
             item.farmAddress || '-',
             item.userAddress || item.owner || '-',
-            String(item.amount ?? '-'),
+            String(item.amount ?? item.tokenAmount ?? '-'),
             (item.txId || item.transactionId || '-').toString().slice(0, 16) + '...',
           ],
         },
@@ -98,10 +97,10 @@ export function registerFarmCommands(program: Command) {
           toRow: (item: any) => [
             item.farmAddress || '-',
             item.userAddress || item.owner || '-',
-            String(item.stakedAmount ?? item.staked ?? '-'),
-            String(item.pendingReward ?? item.rewardAmount ?? '-'),
+            String(item.stakedAmount ?? item.staked ?? item.stakeAmount ?? '-'),
+            String(item.pendingReward ?? item.rewardAmount ?? item.pendingRewardAmount ?? '-'),
             item.rewardTokenSymbol || item.rewardSymbol || '-',
-            formatUsd(item.valueUsd ?? item.totalValueUsd),
+            formatUsd(item.valueUsd ?? item.totalValueUsd ?? item.positionUsd),
           ],
         },
       })

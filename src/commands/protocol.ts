@@ -15,14 +15,14 @@ export function registerProtocolCommands(program: Command) {
         errorLabel: 'Failed to fetch protocol info',
         execute: (api) => api.getProtocol({ protocol: opts.protocol }),
         tableConfig: {
-          headers: ['Protocol', 'TVL', 'Volume 24h', 'Users', 'Pools', 'Transactions'],
+          headers: ['Protocol', 'TVL', 'Volume 24h', 'Users 24h', 'Pools', 'Tx 24h'],
           toRow: (item: any) => [
             item.protocol || item.name || '-',
             formatUsd(item.tvl ?? item.liquidityUsd ?? item.reserveUsd),
-            formatUsd(item.volume24h ?? item.vol24h ?? item.volumeUsd),
-            String(item.usersCount ?? item.users ?? '-'),
-            String(item.poolsCount ?? item.pools ?? '-'),
-            String(item.transactionsCount ?? item.txCount ?? '-'),
+            formatUsd(item.volume24h ?? item.vol24h ?? item.volumeUsd ?? item.volumeUsd1d),
+            String(item.usersCount ?? item.users ?? item.tranUser1d ?? '-'),
+            String(item.poolsCount ?? item.pools ?? item.poolTotal ?? '-'),
+            String(item.transactionsCount ?? item.txCount ?? item.transaction1d ?? '-'),
           ],
         },
       })
@@ -45,11 +45,10 @@ export function registerProtocolCommands(program: Command) {
             endDate: opts.end,
           }),
         tableConfig: {
-          headers: ['Date', 'Volume', 'Volume USD'],
+          headers: ['Date', 'Volume USD'],
           toRow: (item: any) => [
-            item.date || formatTime(item.timestamp),
-            item.volume || item.vol || '-',
-            formatUsd(item.volumeUsd ?? item.volUsd),
+            item.date || formatTime(item.timestamp ?? item.time),
+            formatUsd(item.volumeUsd ?? item.volUsd ?? item.value),
           ],
         },
       })
@@ -72,11 +71,10 @@ export function registerProtocolCommands(program: Command) {
             endDate: opts.end,
           }),
         tableConfig: {
-          headers: ['Date', 'Users', 'New Users'],
+          headers: ['Date', 'Users'],
           toRow: (item: any) => [
-            item.date || formatTime(item.timestamp),
-            String(item.usersCount ?? item.users ?? '-'),
-            String(item.newUsers ?? '-'),
+            item.date || formatTime(item.timestamp ?? item.time),
+            String(item.usersCount ?? item.users ?? item.value ?? '-'),
           ],
         },
       })
@@ -99,13 +97,10 @@ export function registerProtocolCommands(program: Command) {
             endDate: opts.end,
           }),
         tableConfig: {
-          headers: ['Date', 'Transactions', 'Swap', 'Add', 'Withdraw'],
+          headers: ['Date', 'Transactions'],
           toRow: (item: any) => [
-            item.date || formatTime(item.timestamp),
-            String(item.transactionsCount ?? item.txCount ?? '-'),
-            String(item.swapCount ?? '-'),
-            String(item.addCount ?? '-'),
-            String(item.withdrawCount ?? '-'),
+            item.date || formatTime(item.timestamp ?? item.time),
+            String(item.transactionsCount ?? item.txCount ?? item.value ?? '-'),
           ],
         },
       })
@@ -128,11 +123,10 @@ export function registerProtocolCommands(program: Command) {
             endDate: opts.end,
           }),
         tableConfig: {
-          headers: ['Date', 'Pools', 'New Pools'],
+          headers: ['Date', 'Pools'],
           toRow: (item: any) => [
-            item.date || formatTime(item.timestamp),
-            String(item.poolsCount ?? item.pools ?? '-'),
-            String(item.newPools ?? '-'),
+            item.date || formatTime(item.timestamp ?? item.time),
+            String(item.poolsCount ?? item.pools ?? item.value ?? '-'),
           ],
         },
       })
@@ -155,11 +149,10 @@ export function registerProtocolCommands(program: Command) {
             endDate: opts.end,
           }),
         tableConfig: {
-          headers: ['Date', 'Liquidity', 'Liquidity USD'],
+          headers: ['Date', 'Liquidity USD'],
           toRow: (item: any) => [
-            item.date || formatTime(item.timestamp),
-            item.liquidity || item.liq || '-',
-            formatUsd(item.liquidityUsd ?? item.liqUsd ?? item.reserveUsd),
+            item.date || formatTime(item.timestamp ?? item.time),
+            formatUsd(item.liquidityUsd ?? item.liqUsd ?? item.reserveUsd ?? item.value),
           ],
         },
       })

@@ -32,10 +32,10 @@ export function registerTokenCommands(program: Command) {
           toRow: (item: any) => [
             item.symbol || item.tokenSymbol || '-',
             item.tokenAddress || item.address || '-',
-            String(item.decimals ?? '-'),
-            formatUsd(item.volume24h ?? item.vol24h),
-            formatUsd(item.priceInUsd ?? item.price),
-            formatUsd(item.tvl ?? item.tvlUsd ?? item.liquidityUsd),
+            String(item.decimals ?? item.tokenDecimal ?? '-'),
+            formatUsd(item.volume24h ?? item.vol24h ?? item.volumeUsd1d),
+            formatUsd(item.priceInUsd ?? item.price ?? item.tokenPriceUsd),
+            formatUsd(item.tvl ?? item.tvlUsd ?? item.liquidityUsd ?? item.reserveUsd),
           ],
         },
       })
@@ -63,9 +63,9 @@ export function registerTokenCommands(program: Command) {
           toRow: (item: any) => [
             item.symbol || item.tokenSymbol || '-',
             item.tokenAddress || item.address || '-',
-            String(item.decimals ?? '-'),
-            formatUsd(item.volume24h ?? item.vol24h),
-            formatUsd(item.priceInUsd ?? item.price),
+            String(item.decimals ?? item.tokenDecimal ?? '-'),
+            formatUsd(item.volume24h ?? item.vol24h ?? item.volumeUsd1d),
+            formatUsd(item.priceInUsd ?? item.price ?? item.tokenPriceUsd),
           ],
         },
       })

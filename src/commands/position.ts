@@ -37,19 +37,25 @@ export function registerPositionCommands(program: Command) {
             'Token1 Amt',
             'Value',
           ],
-          toRow: (item: any) => [
-            item.poolAddress || '-',
-            item.protocol || '-',
-            item.token0Symbol || '-',
-            item.token1Symbol || '-',
-            String(item.liquidity ?? '-'),
-            item.tickLower !== undefined && item.tickUpper !== undefined
-              ? `[${item.tickLower}, ${item.tickUpper}]`
-              : '-',
-            String(item.amount0 ?? item.token0Amount ?? '-'),
-            String(item.amount1 ?? item.token1Amount ?? '-'),
-            formatUsd(item.valueUsd ?? item.totalValueUsd),
-          ],
+          toRow: (item: any) => {
+            const tickLower = item.tickLower ?? item.extraInfo?.tick_lower
+            const tickUpper = item.tickUpper ?? item.extraInfo?.tick_upper
+            return [
+              item.poolAddress || '-',
+              item.protocol || '-',
+              item.token0Symbol || item.tokenSymbolList?.[0] || '-',
+              item.token1Symbol || item.tokenSymbolList?.[1] || '-',
+              String(
+                item.liquidity ?? item.extraInfo?.position_liquidity ?? item.lpBalanceAmount ?? '-',
+              ),
+              tickLower !== undefined && tickUpper !== undefined
+                ? `[${tickLower}, ${tickUpper}]`
+                : '-',
+              String(item.amount0 ?? item.token0Amount ?? item.userTokenAmountList?.[0] ?? '-'),
+              String(item.amount1 ?? item.token1Amount ?? item.userTokenAmountList?.[1] ?? '-'),
+              formatUsd(item.valueUsd ?? item.totalValueUsd ?? item.lpBalanceUsd),
+            ]
+          },
         },
       })
     })
@@ -70,13 +76,13 @@ export function registerPositionCommands(program: Command) {
             pageSize: parseInt(opts.pageSize),
           }),
         tableConfig: {
-          headers: ['Owner', 'Token ID', 'Tick Lower', 'Tick Upper', 'Liquidity'],
+          headers: ['Pool', 'Tick', 'Liquidity Net', 'Price 0→1', 'Price 1→0'],
           toRow: (item: any) => [
-            item.owner || item.userAddress || '-',
-            String(item.tokenId ?? '-'),
-            String(item.tickLower ?? '-'),
-            String(item.tickUpper ?? '-'),
-            String(item.liquidity ?? '-'),
+            item.poolAddress || '-',
+            String(item.tick ?? item.tickLower ?? '-'),
+            String(item.liquidityNet ?? item.liquidity ?? '-'),
+            item.price0 ?? '-',
+            item.price1 ?? '-',
           ],
         },
       })
