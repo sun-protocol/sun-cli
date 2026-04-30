@@ -28,9 +28,10 @@ export function registerTokenCommands(program: Command) {
             filterBlackList: opts.blacklist !== false ? undefined : false,
           }),
         tableConfig: {
-          headers: ['Symbol', 'Address', 'Decimals', 'Volume 24h', 'Price', 'TVL'],
+          headers: ['Symbol', 'Protocol', 'Address', 'Decimals', 'Volume 24h', 'Price', 'TVL'],
           toRow: (item: any) => [
             item.symbol || item.tokenSymbol || '-',
+            item.protocol || '-',
             item.tokenAddress || item.address || '-',
             String(item.decimals ?? item.tokenDecimal ?? '-'),
             formatUsd(item.volume24h ?? item.vol24h ?? item.volumeUsd1d),
@@ -59,9 +60,10 @@ export function registerTokenCommands(program: Command) {
             pageSize: parseInt(opts.pageSize),
           }),
         tableConfig: {
-          headers: ['Symbol', 'Address', 'Decimals', 'Volume 24h', 'Price'],
+          headers: ['Symbol', 'Protocol', 'Address', 'Decimals', 'Volume 24h', 'Price'],
           toRow: (item: any) => [
             item.symbol || item.tokenSymbol || '-',
+            item.protocol || '-',
             item.tokenAddress || item.address || '-',
             String(item.decimals ?? item.tokenDecimal ?? '-'),
             formatUsd(item.volume24h ?? item.vol24h ?? item.volumeUsd1d),
