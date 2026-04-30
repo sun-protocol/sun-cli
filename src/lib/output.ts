@@ -227,6 +227,90 @@ export function output(
 }
 
 // ---------------------------------------------------------------------------
+// Pagination footer (printed below tables in human mode)
+// ---------------------------------------------------------------------------
+
+export function printPaginationFooter(p: {
+  total?: number
+  pageNo?: number
+  pageSize?: number
+  offset?: string
+}) {
+  if (isJsonMode()) return
+  const parts: string[] = []
+  if (p.pageNo !== undefined) parts.push(`Page ${p.pageNo}`)
+  if (p.pageSize !== undefined) parts.push(`Size ${p.pageSize}`)
+  if (p.total !== undefined) parts.push(`Total ${p.total}`)
+  if (p.offset) parts.push(`Next: ${p.offset}`)
+  if (parts.length) {
+    process.stderr.write(chalk.gray(`(${parts.join('  ')})`) + '\n')
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Value formatters used by toRow / printKeyValue
+// ---------------------------------------------------------------------------
+
+function toFiniteNumber(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+export function formatUsd(value: unknown, fallback = '-'): string {
+  const n = toFiniteNumber(value)
+  if (n === null) return fallback
+  if (Math.abs(n) >= 1) {
+    return '$' + n.toLocaleString('en-US', { maximumFractionDigits: 2 })
+  }
+  return '$' + n.toLocaleString('en-US', { maximumFractionDigits: 6 })
+}
+
+export function formatPct(value: unknown, fallback = '-'): string {
+  const n = toFiniteNumber(value)
+  if (n === null) return fallback
+  // Heuristic: APR returned as decimal fraction (<= 1) is multiplied by 100,
+  // values already in percent units pass through.
+  const pct = Math.abs(n) <= 1 ? n * 100 : n
+  return pct.toFixed(2) + '%'
+}
+
+export function formatAmount(value: unknown, decimals = 0, fallback = '-'): string {
+  if (value === null || value === undefined || value === '') return fallback
+  let raw: bigint
+  try {
+    raw = typeof value === 'bigint' ? value : BigInt(String(value).split('.')[0])
+  } catch {
+    return String(value)
+  }
+  if (decimals <= 0) return raw.toString()
+  const negative = raw < 0n
+  const abs = negative ? -raw : raw
+  const base = 10n ** BigInt(decimals)
+  const whole = abs / base
+  const frac = abs % base
+  const fracStr = frac.toString().padStart(decimals, '0').replace(/0+$/, '')
+  const wholeStr = whole.toLocaleString('en-US')
+  const out = fracStr ? `${wholeStr}.${fracStr}` : wholeStr
+  return negative ? `-${out}` : out
+}
+
+export function formatTime(value: unknown, fallback = '-'): string {
+  if (value === null || value === undefined || value === '') return fallback
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value
+  const n = toFiniteNumber(value)
+  if (n === null) {
+    return typeof value === 'string' ? value : fallback
+  }
+  // Distinguish second vs millisecond timestamps: anything before year 2286 in
+  // seconds is < 1e10, anything after that we treat as already in ms.
+  const ms = n < 1e12 ? n * 1000 : n
+  const date = new Date(ms)
+  if (Number.isNaN(date.getTime())) return fallback
+  return date.toISOString().replace('T', ' ').slice(0, 19) + 'Z'
+}
+
+// ---------------------------------------------------------------------------
 // Spinner for long operations
 // ---------------------------------------------------------------------------
 

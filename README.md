@@ -5,18 +5,24 @@
 ![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6)
 
-A CLI for AI-driven and human-operated DeFi workflows on the TRON network through the SUN.IO / SUNSWAP ecosystem.
+> A CLI for AI-driven and human-operated DeFi workflows on TRON via the **SUN.IO / SUNSWAP** ecosystem.
 
-## Contents
+`@bankofai/sun-cli` connects your terminal, scripts, or AI agents to SUN.IO. Use it to **query** prices, pools, farms, and history; **quote** swap routes; and **execute** swaps, liquidity ops, and contract calls — all with machine-friendly output for automation.
 
-- [Overview](#overview)
+---
+
+## Table of Contents
+
+- [Highlights](#highlights)
+- [Installation](#installation)
 - [Quick Start](#quick-start)
-  - [Install](#install)
-  - [Example Commands](#example-commands)
-  - [Configuration](#configuration)
-    - [Wallet Configuration](#wallet-configuration)
-    - [Network Configuration](#network-configuration)
-- [Command Guide](#command-guide)
+- [Getting Help](#getting-help)
+  - [Built-In Help](#built-in-help)
+  - [Shell Completion](#shell-completion)
+- [Configuration](#configuration)
+  - [Wallet](#wallet)
+  - [Network](#network)
+- [Command Reference](#command-reference)
   - [Wallet & Portfolio](#wallet--portfolio)
   - [Price & Discovery](#price--discovery)
   - [Swap](#swap)
@@ -24,43 +30,42 @@ A CLI for AI-driven and human-operated DeFi workflows on the TRON network throug
   - [Protocol & History](#protocol--history)
   - [Generic Contract](#generic-contract)
 - [Global Flags](#global-flags)
-- [Output Modes](#output-modes)
+- [Output Formats](#output-formats)
 - [Built-In Token Symbols](#built-in-token-symbols)
 - [Troubleshooting](#troubleshooting)
-- [Security Considerations](#security-considerations)
+- [Security](#security)
 - [Development](#development)
 - [License](#license)
 
-## Overview
+---
 
-Connect your terminal, scripts, or AI agents to SUN.IO through a single CLI. With `@bankofai/sun-cli`, you can:
+## Highlights
 
-- **Query** token prices, pools, protocol metrics, farm data, positions, and transaction history
-- **Quote** swap routes across SUNSwap routing paths
-- **Execute** swaps, liquidity management, and contract writes with a configured wallet
-- **Automate** machine-friendly workflows with compact JSON, field filtering, dry-run mode, and no-prompt execution
+- **Read anything** — token prices, pools, farms, positions, transaction history, and protocol metrics
+- **Quote and route** — best-route quotes across SUNSwap V1/V2/V3/V4
+- **Execute on-chain** — swaps, liquidity management (V2/V3/V4), and arbitrary contract writes
+- **Automate** — JSON output, field filters, `--dry-run`, and `--yes` for non-interactive use
+- **Read-only out of the box** — no wallet required for queries and quotes
 
-The CLI supports both interactive terminal usage and automation-oriented invocation patterns. Without wallet credentials, read-only commands still work.
+---
 
-## Quick Start
-
-### Install
-
-Install from npm:
+## Installation
 
 ```bash
 npm install -g @bankofai/sun-cli
 ```
 
-### Example Commands
+Requires Node.js **20+**.
 
-Read-only:
+---
+
+## Quick Start
+
+### 1. Get a token price
 
 ```bash
 $ sun price TRX
 ```
-
-Example response for `sun price TRX`:
 
 ```text
 ✔ Fetching prices...
@@ -71,11 +76,11 @@ Example response for `sun price TRX`:
 └───────┴────────────────┘
 ```
 
+### 2. Find the highest-APY pools
+
 ```bash
 $ sun pool top-apy --page-size 5
 ```
-
-Example response for `sun pool top-apy --page-size 5`:
 
 ```text
 ✔ Fetching top APY pools...
@@ -83,26 +88,21 @@ Example response for `sun pool top-apy --page-size 5`:
 │ Pool                               │ Token0 │ Token1  │ APY    │ TVL            │
 ├────────────────────────────────────┼────────┼─────────┼────────┼────────────────┤
 │ TXX1i3BWKBuTxUmTERCztGyxSSpRagEcjX │ TRX    │ USDCOLD │ 29.13% │ $215,543.763   │
-├────────────────────────────────────┼────────┼─────────┼────────┼────────────────┤
 │ TDJUxxbmxwC5gUHXm2on4ZHJwjzwkBcJ8s │ TEM    │ WTRX    │ 27.50% │ $168,679.435   │
-├────────────────────────────────────┼────────┼─────────┼────────┼────────────────┤
 │ TVrZ3PjjFGbnp44p6SGASAKrJWAUjCHmCA │ TRX    │ ETH     │ 14.61% │ $286,068.322   │
-├────────────────────────────────────┼────────┼─────────┼────────┼────────────────┤
 │ TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE │ TRX    │ USDT    │ 13.60% │ $1,179,854.455 │
-├────────────────────────────────────┼────────┼─────────┼────────┼────────────────┤
 │ TDR7rpU33hToG8qo9i676V56bzcjkpjqox │ WTRX   │ SUNDOG  │ 8.38%  │ $782,507.15    │
 └────────────────────────────────────┴────────┴─────────┴────────┴────────────────┘
 ```
+
+### 3. Quote a swap (no wallet needed)
 
 ```bash
 $ sun swap:quote TRX USDT 1000000 --network nile
 ```
 
-Example response for `sun swap:quote TRX USDT 1000000 --network nile`:
-
 ```text
 ✔ Fetching quote...
-
 Found 3 route(s) for swap:
 
   Path:         TRX → WIN → USDJ → USDT
@@ -114,23 +114,11 @@ Found 3 route(s) for swap:
   (2 more route(s) available, use --all to see them)
 ```
 
-Wallet-aware: See [Wallet Configuration](#wallet-configuration).
-
-```bash
-$ sun wallet address
-```
-
-Example response for `sun wallet address`:
-
-```json
-{ "address": "TNmoJ3Be59WFEq5dsW6eCkZjveiL3G8HVB", "network": "mainnet" }
-```
+### 4. Execute a swap (wallet required)
 
 ```bash
 $ sun swap TRX USDT 1000000 --network nile --yes
 ```
-
-Example response for `sun swap TRX USDT 1000000 --network nile --yes`:
 
 ```text
 Swap Preview
@@ -141,56 +129,114 @@ Swap Preview
   Network    nile
 
 ✔ Executing swap...
-{"txid":"4b2ae5186666d30c9f034489813a43ad8edc771f7228759b5e6145a6f134834e","route":{"amountIn":"1.000000","amountOut":"66.028258","symbols":["TRX","WIN","USDJ","USDT"],"poolVersions":["v1","v2","old3pool"],"impact":"-0.183279"},"tronscanUrl":"https://nile.tronscan.org/#/transaction/4b2ae5186666d30c9f034489813a43ad8edc771f7228759b5e6145a6f134834e"}
 
 Swap executed successfully
-  TxID: 4b2ae5186666d30c9f034489813a43ad8edc771f7228759b5e6145a6f134834e
-  Tronscan: https://nile.tronscan.org/#/transaction/4b2ae5186666d30c9f034489813a43ad8edc771f7228759b5e6145a6f134834e
-  Route: TRX → WIN → USDJ → USDT
-  Amount Out: 66.028258
-  Price Impact: -0.183279
+  TxID:        4b2ae5186666d30c9f034489813a43ad8edc771f7228759b5e6145a6f134834e
+  Tronscan:    https://nile.tronscan.org/#/transaction/4b2ae518...
+  Route:       TRX → WIN → USDJ → USDT
+  Amount Out:  66.028258
+  Price Impact:-0.183279
 ```
 
-Write operations such as `swap`, `liquidity`, and `contract send` require wallet credentials.
+> **Note:** Write operations (`swap`, `liquidity`, `contract send`) require a configured wallet. See [Configuration](#configuration).
 
-### Configuration
+---
 
-#### Wallet Configuration
+## Getting Help
 
-Wallets are managed through [`agent-wallet`](https://github.com/BofAI/agent-wallet?tab=readme-ov-file#quick-start) file-backed configuration. Install and configure `agent-wallet` first. This repository no longer reads or maps legacy `TRON_PRIVATE_KEY`, `TRON_MNEMONIC`, or `TRON_MNEMONIC_ACCOUNT_INDEX` wallet variables.
+### Built-In Help
 
-> **Note**
-> You can override wallet settings for a single invocation with root-level flags such as `-k`, `-m`, `-i`, `-p`, and `-d`. See [`agent-wallet`](https://github.com/BofAI/agent-wallet?tab=readme-ov-file#quick-start) for wallet file formats, local setup, and the full set of SDK-supported `AGENT_WALLET_*` options.
+Every command level supports `--help` (or `-h`). Use it to discover options, subcommands, and flag aliases without leaving the terminal.
 
-#### Network Configuration
+| Command | What it shows |
+| --- | --- |
+| `sun --help` | Top-level overview, global flags, full command list |
+| `sun --version` | Installed CLI version |
+| `sun <group> --help` | Subcommand group help (e.g. `sun pool --help`, `sun liquidity --help`) |
+| `sun <group> <cmd> --help` | Leaf command help with all options (e.g. `sun pool top-apy --help`) |
+| `sun help <command>` | Equivalent to `<command> --help` |
 
-- `TRON_NETWORK` — optional network override, defaults to `mainnet`
-- `TRONGRID_API_KEY` — optional TronGrid API key for higher-rate mainnet access
-- `TRON_RPC_URL` — optional custom TRON RPC endpoint
+```bash
+sun --help                       # global flags + command list
+sun pool --help                  # all pool subcommands
+sun pool top-apy --help          # options for `pool top-apy`
+sun help swap                    # equivalent to `sun swap --help`
+sun --version                    # print installed version
+```
 
-Example:
+### Shell Completion
+
+Tab completion is **not bundled**. The two snippets below give you top-level command-name completion in your shell — drop them in your shell rc file and re-source it.
+
+**zsh** (`~/.zshrc`):
+
+```zsh
+_sun_cmds() {
+  compadd -- wallet price swap swap:quote swap:quote-raw swap:exact-input \
+    token pool protocol tx position pair farm liquidity contract help
+}
+compdef _sun_cmds sun
+```
+
+**bash** (`~/.bashrc`):
+
+```bash
+_sun_cmds() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  COMPREPLY=( $(compgen -W "wallet price swap swap:quote swap:quote-raw \
+    swap:exact-input token pool protocol tx position pair farm liquidity \
+    contract help" -- "$cur") )
+}
+complete -F _sun_cmds sun
+```
+
+For richer completion (subcommands, flags, token symbols), wrap the CLI with [`omelette`](https://github.com/f/omelette) or [`tabtab`](https://github.com/mklabs/tabtab) — neither is required for normal use.
+
+---
+
+## Configuration
+
+### Wallet
+
+Wallets are managed by [`agent-wallet`](https://github.com/BofAI/agent-wallet?tab=readme-ov-file#quick-start) — install and configure it first. Legacy `TRON_PRIVATE_KEY`, `TRON_MNEMONIC`, and `TRON_MNEMONIC_ACCOUNT_INDEX` variables are no longer read.
+
+You can override wallet settings per-invocation with these root flags:
+
+| Flag | Purpose |
+| --- | --- |
+| `-k, --private-key <key>` | One-shot private key |
+| `-m, --mnemonic <phrase>` | One-shot mnemonic |
+| `-i, --mnemonic-account-index <n>` | Mnemonic account index |
+| `-p, --agent-wallet-password <pw>` | Override `AGENT_WALLET_PASSWORD` |
+| `-d, --agent-wallet-dir <dir>` | Override `AGENT_WALLET_DIR` |
+
+See [`agent-wallet`](https://github.com/BofAI/agent-wallet?tab=readme-ov-file#quick-start) for file formats and the full set of `AGENT_WALLET_*` options.
+
+### Network
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `TRON_NETWORK` | Target network (`mainnet`, `nile`, …) | `mainnet` |
+| `TRONGRID_API_KEY` | TronGrid API key for higher rate limits | — |
+| `TRON_RPC_URL` | Custom RPC endpoint | — |
 
 ```bash
 export TRON_NETWORK=mainnet
-export TRONGRID_API_KEY="<YOUR_TRONGRID_API_KEY_HERE>"
+export TRONGRID_API_KEY="<YOUR_KEY>"
 export TRON_RPC_URL=https://your-tron-rpc.example
 ```
 
-## Command Guide
+---
+
+## Command Reference
 
 ### Wallet & Portfolio
-
-Inspect the active wallet and balances:
 
 ```bash
 sun wallet address
 sun wallet balances
 sun wallet balances --owner TYourAddress --tokens TRX,TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
-```
 
-Related read-only portfolio commands:
-
-```bash
 sun position list --owner TYourAddress
 sun position tick <poolAddress>
 sun farm positions --owner TYourAddress
@@ -198,7 +244,7 @@ sun farm positions --owner TYourAddress
 
 ### Price & Discovery
 
-Token prices:
+**Prices:**
 
 ```bash
 sun price TRX
@@ -206,91 +252,89 @@ sun price USDT
 sun price --address TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
 ```
 
-Token, pool, pair, and farm discovery:
+**Tokens, pools, pairs, farms:**
 
 ```bash
 sun token list --protocol V3
 sun token search USDT
+
 sun pool list --token TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
 sun pool search "TRX USDT"
 sun pool top-apy --page-size 10
 sun pool hooks
+
 sun pair info --token TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
 sun farm list
 ```
 
 ### Swap
 
-High-level swap execution:
+**High-level:**
 
 ```bash
 sun swap TRX USDT 1000000 --slippage 0.005
-sun -k your_private_key --network nile --yes swap TRX USDT 1000000
+sun -k <private_key> --network nile --yes swap TRX USDT 1000000
 ```
 
-Read-only quote:
+**Quote only:**
 
 ```bash
 sun swap:quote TRX USDT 1000000
 sun swap:quote TRX USDT 1000000 --all
 ```
 
-Low-level router interaction:
+**Low-level router calls:**
 
 ```bash
-sun swap:quote-raw --router <routerAddress> --args '[...]'
+sun swap:quote-raw   --router <routerAddress> --args '[...]'
 sun swap:exact-input --router <routerAddress> --args '[...]' --value 1000000
 ```
 
-Successful broadcast responses include:
-
-- `txid`
-- route details when available
-- `tronscanUrl` based on the selected network
+A successful broadcast response includes `txid`, route details (when available), and a `tronscanUrl` for the active network.
 
 ### Liquidity
 
-V2:
+**V2:**
 
 ```bash
-sun liquidity v2:add --token-a TRX --token-b USDT --amount-a 1000000 --amount-b 290000
+sun liquidity v2:add    --token-a TRX --token-b USDT --amount-a 1000000 --amount-b 290000
 sun liquidity v2:remove --token-a TRX --token-b USDT --liquidity 500000
 ```
 
-V3:
+**V3:**
 
 ```bash
-sun liquidity v3:mint --token0 TRX --token1 USDT --amount0 1000000
+sun liquidity v3:mint     --token0 TRX --token1 USDT --amount0 1000000
 sun liquidity v3:increase --token-id 123 --amount0 500000
 sun liquidity v3:decrease --token-id 123 --liquidity 1000
-sun liquidity v3:collect --token-id 123
+sun liquidity v3:collect  --token-id 123
 ```
 
-V4:
+**V4:**
 
 ```bash
-sun liquidity v4:mint --token0 TRX --token1 USDT --amount0 1000000
-sun liquidity v4:mint --token0 TRX --token1 USDT --amount0 1000000 --create-pool
+sun liquidity v4:mint     --token0 TRX --token1 USDT --amount0 1000000
+sun liquidity v4:mint     --token0 TRX --token1 USDT --amount0 1000000 --create-pool
 sun liquidity v4:increase --token-id 123 --token0 TRX --token1 USDT --amount0 500000
 sun liquidity v4:decrease --token-id 123 --liquidity 1000 --token0 TRX --token1 USDT
-sun liquidity v4:collect --token-id 123
-sun liquidity v4:info --pm <positionManager> --token-id 123
+sun liquidity v4:collect  --token-id 123
+sun liquidity v4:info     --pm <positionManager> --token-id 123
 ```
 
 ### Protocol & History
 
-Protocol analytics:
+**Protocol-wide analytics:**
 
 ```bash
 sun protocol info
-sun protocol vol-history --start 2026-01-01 --end 2026-03-01
-sun protocol users-history --start 2026-01-01 --end 2026-03-01
-sun protocol tx-history --start 2026-01-01 --end 2026-03-01
-sun protocol pools-history --start 2026-01-01 --end 2026-03-01
-sun protocol liq-history --start 2026-01-01 --end 2026-03-01
+sun protocol vol-history    --start 2026-01-01 --end 2026-03-01
+sun protocol users-history  --start 2026-01-01 --end 2026-03-01
+sun protocol tx-history     --start 2026-01-01 --end 2026-03-01
+sun protocol pools-history  --start 2026-01-01 --end 2026-03-01
+sun protocol liq-history    --start 2026-01-01 --end 2026-03-01
 ```
 
-Pool and transaction history:
+**Per-pool and transaction history:**
 
 ```bash
 sun pool vol-history <poolAddress> --start 2026-01-01 --end 2026-03-01
@@ -300,101 +344,117 @@ sun tx scan --type swap --token TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t --start 2026-
 
 ### Generic Contract
 
-Read from or write to arbitrary TRON smart contracts:
+Read or write to any TRON smart contract:
 
 ```bash
 sun contract read <contractAddress> balanceOf --args '["TYourAddress"]'
-sun contract send <contractAddress> transfer --args '["TRecipient","1000000"]' --value 0
+sun contract send <contractAddress> transfer  --args '["TRecipient","1000000"]' --value 0
 ```
 
-`contract send` also returns `tronscanUrl` when a transaction is broadcast successfully.
+`contract send` returns a `tronscanUrl` on successful broadcast.
+
+---
 
 ## Global Flags
 
-All commands inherit these root-level flags:
+Inherited by every subcommand:
 
-| Flag                                     | Description                                               |
-| ---------------------------------------- | --------------------------------------------------------- |
-| `--output <format>`                      | Output format: `table`, `json`, `tsv`                     |
-| `--json`                                 | Shortcut for JSON output                                  |
-| `--fields <list>`                        | Comma-separated output field filter                       |
-| `--network <network>`                    | Override `TRON_NETWORK`                                   |
-| `-k, --private-key <key>`                | Provide a private key for this invocation only            |
-| `-m, --mnemonic <phrase>`                | Provide a mnemonic for this invocation only               |
-| `-i, --mnemonic-account-index <index>`   | Provide a mnemonic account index for this invocation only |
-| `-p, --agent-wallet-password <password>` | Override `AGENT_WALLET_PASSWORD` for this invocation      |
-| `-d, --agent-wallet-dir <dir>`           | Override `AGENT_WALLET_DIR` for this invocation           |
-| `-y, --yes`                              | Skip confirmation prompts                                 |
-| `--dry-run`                              | Print intent without sending the write action             |
+| Flag | Description |
+| --- | --- |
+| `--output <format>` | Output format: `table`, `json`, `tsv` |
+| `--json` | Shortcut for `--output json` |
+| `--fields <list>` | Comma-separated field filter |
+| `--network <network>` | Override `TRON_NETWORK` |
+| `-k, --private-key <key>` | One-shot private key |
+| `-m, --mnemonic <phrase>` | One-shot mnemonic |
+| `-i, --mnemonic-account-index <n>` | Mnemonic account index |
+| `-p, --agent-wallet-password <pw>` | Override `AGENT_WALLET_PASSWORD` |
+| `-d, --agent-wallet-dir <dir>` | Override `AGENT_WALLET_DIR` |
+| `-y, --yes` | Skip confirmation prompts |
+| `--dry-run` | Print intent without sending the write |
 
-Examples:
+**Examples:**
 
 ```bash
 sun --json price TRX
 sun --output tsv pool top-apy --page-size 10
 sun --fields address,network wallet address
-sun -p your_agent_wallet_password wallet address
-sun -k your_private_key --network nile --yes swap TRX USDT 1000000
+sun --json --fields txid,tronscanUrl swap TRX USDT 1000000
 sun --dry-run contract send TContract transfer --args '["TRecipient","1000000"]'
 ```
 
-## Output Modes
+---
 
-`sun-cli` supports three output modes:
+## Output Formats
 
-- **table** — default, human-friendly terminal output
-- **json** — compact machine-readable JSON
-- **tsv** — tab-separated values for shell pipelines
-
-Examples:
+| Mode | When to use |
+| --- | --- |
+| `table` *(default)* | Human-friendly terminal output |
+| `json` | Machine-readable JSON for scripts and agents |
+| `tsv` | Tab-separated values for shell pipelines |
 
 ```bash
 sun pool top-apy --page-size 5
 sun --json wallet address
 sun --output tsv token list --protocol V3
-sun --json --fields txid,tronscanUrl swap TRX USDT 1000000
 ```
+
+---
 
 ## Built-In Token Symbols
 
-Many commands accept token symbols in addition to TRON addresses.
+Most commands accept these symbols anywhere a token is expected.
 
-| Symbol | Address                              | Decimals |
-| ------ | ------------------------------------ | -------- |
-| `TRX`  | `T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb` | 6        |
-| `WTRX` | `TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR` | 6        |
-| `USDT` | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | 6        |
-| `USDC` | `TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8` | 6        |
-| `USDD` | `TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn` | 18       |
-| `SUN`  | `TSSMHYeV2uE9qYH95DqyoCuNCzEL1NvU3S` | 18       |
-| `JST`  | `TCFLL5dx5ZJdKnWuesXxi1VPwjLVmWZZy9` | 18       |
-| `BTT`  | `TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4` | 18       |
-| `WIN`  | `TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7` | 6        |
+| Symbol | Address | Decimals |
+| --- | --- | --- |
+| `TRX`  | `T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb` | 6 |
+| `WTRX` | `TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR` | 6 |
+| `USDT` | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | 6 |
+| `USDC` | `TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8` | 6 |
+| `USDD` | `TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn` | 18 |
+| `SUN`  | `TSSMHYeV2uE9qYH95DqyoCuNCzEL1NvU3S` | 18 |
+| `JST`  | `TCFLL5dx5ZJdKnWuesXxi1VPwjLVmWZZy9` | 18 |
+| `BTT`  | `TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4` | 18 |
+| `WIN`  | `TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7` | 6 |
 
-Example:
+Symbols and raw addresses are interchangeable:
 
 ```bash
 sun swap TRX USDT 1000000
 sun swap T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t 1000000
 ```
 
+---
+
 ## Troubleshooting
 
-### `unknown command 'nile'`
+Quick lookup for the most common errors:
 
-Root flags must be placed before the subcommand:
+| Error | Category | Jump to |
+| --- | --- | --- |
+| `unknown command 'nile'` | CLI parsing | [▸ Flag placement](#error-unknown-command-nile) |
+| `No wallet configured` | Wallet setup | [▸ Wallet sources](#error-no-wallet-configured) |
+| `Swap failed` | Execution | [▸ Swap diagnostics](#error-swap-failed) |
+
+### Error: `unknown command 'nile'`
+
+> **Category:** CLI argument parsing — root flags placed after the subcommand.
+
+Root flags must come **before** the subcommand:
 
 ```bash
 sun --network nile swap TRX USDT 1000000
 ```
 
-When using npm scripts, pass arguments after `--`:
+When invoking through npm, separate args with `--`:
 
 ```bash
 npm run start -- --network nile swap TRX USDT 1000000
 ```
 
-### `No wallet configured`
+### Error: `No wallet configured`
+
+> **Category:** Wallet configuration — no credential source detected.
 
 Set exactly one wallet source:
 
@@ -402,28 +462,34 @@ Set exactly one wallet source:
 - `AGENT_WALLET_MNEMONIC`
 - `AGENT_WALLET_PASSWORD`
 
-Or provide the equivalent root-level flag for that invocation.
+…or pass the equivalent root flag (`-k`, `-m`, `-p`) for that invocation.
 
-### `Swap failed`
+### Error: `Swap failed`
+
+> **Category:** Transaction execution — broadcast or routing rejected.
 
 Common causes:
 
-- wallet not configured
-- unsupported token symbol
-- insufficient balance
-- RPC / router API failure
-- stale or invalid route parameters
+- Wallet not configured
+- Unsupported token symbol
+- Insufficient balance
+- RPC or router API failure
+- Stale or invalid route parameters
 
-Use `swap:quote` first and then retry with `--yes` only after the quote looks correct.
+Run `swap:quote` first, then re-run with `--yes` once the quote looks right.
 
-## Security Considerations
+---
+
+## Security
 
 - Treat `AGENT_WALLET_PRIVATE_KEY`, `AGENT_WALLET_MNEMONIC`, and `AGENT_WALLET_PASSWORD` as secrets.
-- Prefer environment variables over command-line wallet flags when possible, because shell history and process lists may expose secrets.
-- Use a dedicated wallet for automation instead of a primary treasury wallet.
-- Run `--dry-run` before high-value writes.
+- Prefer environment variables over CLI flags — shell history and process lists can leak secrets.
+- Use a dedicated automation wallet, not your treasury wallet.
+- Use `--dry-run` before any high-value write.
 - Verify token addresses carefully when not using built-in symbols.
-- Do not treat quotes as guaranteed execution results in volatile markets.
+- Quotes are estimates, not guarantees — markets move.
+
+---
 
 ## Development
 
@@ -439,6 +505,8 @@ Run from source:
 ```bash
 npm run dev -- price TRX
 ```
+
+---
 
 ## License
 

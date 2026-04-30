@@ -22,15 +22,15 @@ export function registerPairCommands(program: Command) {
             pageNo: parseInt(opts.page),
             pageSize: parseInt(opts.pageSize),
           }),
-        transform: (result: any) => result.data || result,
         tableConfig: {
-          headers: ['Pool', 'Token0', 'Token1', 'Protocol', 'TVL'],
+          headers: ['Base', 'Quote', 'Protocol', 'Price', 'Base Vol 1d', 'Quote Vol 1d'],
           toRow: (item: any) => [
-            item.poolAddress || item.pairAddress || '-',
-            item.token0Symbol || '-',
-            item.token1Symbol || '-',
+            item.baseSymbol || item.token0Symbol || '-',
+            item.quoteSymbol || item.token1Symbol || '-',
             item.protocol || '-',
-            item.tvl || item.liquidity || '-',
+            item.price ?? '-',
+            String(item.baseAmountVol1d ?? '-'),
+            String(item.quoteAmountVol1d ?? '-'),
           ],
         },
       })

@@ -369,6 +369,19 @@ export function registerLiquidityCommands(program: Command) {
             recipient: opts.recipient,
             deadline: opts.deadline,
           }),
+        summarizeResult: (result: any) => {
+          const out: Record<string, unknown> = {}
+          if (result?.computedTicks) {
+            out['Tick Lower'] = result.computedTicks.tickLower
+            out['Tick Upper'] = result.computedTicks.tickUpper
+          }
+          if (result?.computedAmounts) {
+            out['Amount0 Desired'] = result.computedAmounts.amount0Desired
+            out['Amount1 Desired'] = result.computedAmounts.amount1Desired
+          }
+          if (result?.tronscanUrl) out['Tronscan'] = result.tronscanUrl
+          return out
+        },
       })
     })
 
@@ -417,6 +430,15 @@ export function registerLiquidityCommands(program: Command) {
             amount1Min: opts.min1,
             deadline: opts.deadline,
           }),
+        summarizeResult: (result: any) => {
+          const out: Record<string, unknown> = {}
+          if (result?.computedAmounts) {
+            out['Amount0 Desired'] = result.computedAmounts.amount0Desired
+            out['Amount1 Desired'] = result.computedAmounts.amount1Desired
+          }
+          if (result?.tronscanUrl) out['Tronscan'] = result.tronscanUrl
+          return out
+        },
       })
     })
 
@@ -489,6 +511,15 @@ export function registerLiquidityCommands(program: Command) {
             tokenId: opts.tokenId,
             recipient: opts.recipient,
           }),
+        summarizeResult: (result: any) => {
+          const out: Record<string, unknown> = {}
+          if (result?.estimatedFees) {
+            out['Estimated Fee 0'] = result.estimatedFees.amount0
+            out['Estimated Fee 1'] = result.estimatedFees.amount1
+          }
+          if (result?.tronscanUrl) out['Tronscan'] = result.tronscanUrl
+          return out
+        },
       })
     })
 
@@ -567,6 +598,20 @@ export function registerLiquidityCommands(program: Command) {
             sqrtPriceX96: opts.sqrtPrice,
             createPoolIfNeeded: opts.createPool,
           }),
+        summarizeResult: (result: any) => {
+          const out: Record<string, unknown> = {}
+          if (result?.poolCreated !== undefined) out['Pool Created'] = result.poolCreated
+          if (result?.computedTicks) {
+            out['Tick Lower'] = result.computedTicks.tickLower
+            out['Tick Upper'] = result.computedTicks.tickUpper
+          }
+          if (result?.computedAmounts) {
+            out['Amount0 Desired'] = result.computedAmounts.amount0Desired
+            out['Amount1 Desired'] = result.computedAmounts.amount1Desired
+          }
+          if (result?.tronscanUrl) out['Tronscan'] = result.tronscanUrl
+          return out
+        },
       })
     })
 
@@ -625,6 +670,15 @@ export function registerLiquidityCommands(program: Command) {
             slippage: opts.slippage ? parseFloat(opts.slippage) : undefined,
             deadline: opts.deadline,
           }),
+        summarizeResult: (result: any) => {
+          const out: Record<string, unknown> = {}
+          if (result?.computedAmounts) {
+            out['Amount0 Desired'] = result.computedAmounts.amount0Desired
+            out['Amount1 Desired'] = result.computedAmounts.amount1Desired
+          }
+          if (result?.tronscanUrl) out['Tronscan'] = result.tronscanUrl
+          return out
+        },
       })
     })
 
@@ -684,6 +738,15 @@ export function registerLiquidityCommands(program: Command) {
             slippage: opts.slippage ? parseFloat(opts.slippage) : undefined,
             deadline: opts.deadline,
           }),
+        summarizeResult: (result: any) => {
+          const out: Record<string, unknown> = {}
+          if (result?.computedAmountMin) {
+            out['Amount0 Min'] = result.computedAmountMin.amount0Min
+            out['Amount1 Min'] = result.computedAmountMin.amount1Min
+          }
+          if (result?.tronscanUrl) out['Tronscan'] = result.tronscanUrl
+          return out
+        },
       })
     })
 

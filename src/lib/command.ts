@@ -4,7 +4,14 @@
 
 import type { SunKit, SunAPI } from '@bankofai/sun-kit'
 import { getKit, getApi, ensureWallet } from './context'
-import { output, outputError, withSpinner, isJsonMode } from './output'
+import {
+  output,
+  outputError,
+  withSpinner,
+  isJsonMode,
+  printPaginationFooter,
+  printKeyValue,
+} from './output'
 import { confirm, printSummary } from './confirm'
 
 // ---------------------------------------------------------------------------
@@ -33,6 +40,20 @@ function getTronscanBaseUrl(network?: string): string | null {
   }
 }
 
+function findTxid(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const obj = value as Record<string, unknown>
+  if (typeof obj.txid === 'string') return obj.txid
+  if (typeof obj.txID === 'string') return obj.txID
+  for (const key of ['txResult', 'result']) {
+    if (obj[key]) {
+      const nested = findTxid(obj[key])
+      if (nested) return nested
+    }
+  }
+  return null
+}
+
 function attachExplorerLink<T>(
   result: T,
   fallbackNetwork?: string,
@@ -41,13 +62,7 @@ function attachExplorerLink<T>(
     return result
   }
 
-  const txid =
-    typeof (result as Record<string, unknown>).txid === 'string'
-      ? (result as Record<string, string>).txid
-      : typeof (result as Record<string, unknown>).txID === 'string'
-        ? (result as Record<string, string>).txID
-        : null
-
+  const txid = findTxid(result)
   const network =
     typeof (result as Record<string, unknown>).network === 'string'
       ? (result as Record<string, string>).network
@@ -62,6 +77,75 @@ function attachExplorerLink<T>(
     ...(result as Record<string, unknown>),
     tronscanUrl: `${baseUrl}/${txid}`,
   } as T & { tronscanUrl: string }
+}
+
+// ---------------------------------------------------------------------------
+// SUN.IO OpenAPI envelope parsing
+// ---------------------------------------------------------------------------
+
+export interface ApiPagination {
+  total?: number
+  pageNo?: number
+  pageSize?: number
+  offset?: string
+}
+
+export class SunApiError extends Error {
+  readonly code: string
+  readonly apiCode: number
+  constructor(message: string, apiCode: number) {
+    super(message)
+    this.name = 'SunApiError'
+    this.code = 'API_ERROR'
+    this.apiCode = apiCode
+  }
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return !!v && typeof v === 'object' && !Array.isArray(v)
+}
+
+function assertApiOk(raw: unknown): void {
+  if (!isPlainObject(raw) || !('code' in raw)) return
+  const code = raw.code
+  if (code === undefined || code === null) return
+  if (code === 0 || code === 200) return
+  const message = typeof raw.message === 'string' ? raw.message : `API error: code=${code}`
+  throw new SunApiError(message, Number(code))
+}
+
+function unwrapApiData(raw: unknown): unknown {
+  if (isPlainObject(raw) && 'data' in raw) return raw.data
+  return raw
+}
+
+function readPagination(src: unknown): ApiPagination | undefined {
+  if (!isPlainObject(src)) return undefined
+  const total = (src.total ?? src.totalCount) as number | undefined
+  const pageNo = (src.pageNo ?? src.page) as number | undefined
+  const pageSize = src.pageSize as number | undefined
+  const offset = (src.offset ?? src.next) as string | undefined
+  if (
+    total === undefined &&
+    pageNo === undefined &&
+    pageSize === undefined &&
+    offset === undefined
+  ) {
+    return undefined
+  }
+  return { total, pageNo, pageSize, offset }
+}
+
+export function parseApiResponse<T = unknown>(
+  raw: unknown,
+): {
+  data: T
+  pagination?: ApiPagination
+} {
+  assertApiOk(raw)
+  const data = unwrapApiData(raw)
+  const pagination = readPagination(data) ?? readPagination(raw)
+  return { data: data as T, pagination }
 }
 
 // ---------------------------------------------------------------------------
@@ -83,6 +167,8 @@ export interface WriteActionOpts<T> {
   errorLabel: string
   /** Optional post-success callback (e.g. extra human-friendly output) */
   onSuccess?: (result: T | (T & { tronscanUrl: string })) => void | Promise<void>
+  /** Optional key/value pairs printed below the result in human mode */
+  summarizeResult?: (result: T | (T & { tronscanUrl: string })) => Record<string, unknown> | null
 }
 
 export async function writeAction<T>(opts: WriteActionOpts<T>): Promise<void> {
@@ -108,6 +194,14 @@ export async function writeAction<T>(opts: WriteActionOpts<T>): Promise<void> {
     const result = await withSpinner(opts.spinnerLabel, () => opts.execute(kit))
     const enrichedResult = attachExplorerLink(result, network)
     output(enrichedResult)
+
+    if (opts.summarizeResult && !isJsonMode()) {
+      const summary = opts.summarizeResult(enrichedResult)
+      if (summary && Object.keys(summary).length > 0) {
+        console.log()
+        printKeyValue(summary)
+      }
+    }
 
     if (opts.onSuccess) {
       await opts.onSuccess(enrichedResult)
@@ -159,17 +253,30 @@ export interface ReadApiActionOpts<T> {
   tableConfig?: { headers: string[]; toRow: (item: any) => string[] }
   /** Error label prefix */
   errorLabel: string
-  /** Optional transform before output */
-  transform?: (result: T) => unknown
+  /** Transform applied to the unwrapped data (post code/data parse) */
+  transform?: (data: any) => unknown
+  /** Set false to skip SUN.IO envelope parsing (e.g. non-OpenAPI responses) */
+  parseApi?: boolean
 }
 
 export async function readApiAction<T>(opts: ReadApiActionOpts<T>): Promise<void> {
   try {
     const api = getApi()
 
-    const result = await withSpinner(opts.spinnerLabel, () => opts.execute(api))
-    const data = opts.transform ? opts.transform(result) : result
-    output(data, opts.tableConfig)
+    const raw = await withSpinner(opts.spinnerLabel, () => opts.execute(api))
+
+    let data: unknown = raw
+    let pagination: ApiPagination | undefined
+    if (opts.parseApi !== false) {
+      const parsed = parseApiResponse(raw)
+      data = parsed.data
+      pagination = parsed.pagination
+    }
+
+    const final = opts.transform ? opts.transform(data) : data
+    output(final, opts.tableConfig)
+
+    if (pagination) printPaginationFooter(pagination)
   } catch (err: any) {
     outputError(opts.errorLabel, err)
   }

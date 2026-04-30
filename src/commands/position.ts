@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { readApiAction } from '../lib/command'
+import { formatUsd } from '../lib/output'
 
 export function registerPositionCommands(program: Command) {
   const position = program.command('position').description('Liquidity position queries')
@@ -24,16 +25,37 @@ export function registerPositionCommands(program: Command) {
             pageNo: parseInt(opts.page),
             pageSize: parseInt(opts.pageSize),
           }),
-        transform: (result: any) => result.data || result,
         tableConfig: {
-          headers: ['Pool', 'Protocol', 'Token0', 'Token1', 'Liquidity'],
-          toRow: (item: any) => [
-            item.poolAddress || '-',
-            item.protocol || '-',
-            item.token0Symbol || '-',
-            item.token1Symbol || '-',
-            item.liquidity || '-',
+          headers: [
+            'Pool',
+            'Protocol',
+            'Token0',
+            'Token1',
+            'Liquidity',
+            'Range',
+            'Token0 Amt',
+            'Token1 Amt',
+            'Value',
           ],
+          toRow: (item: any) => {
+            const tickLower = item.tickLower ?? item.extraInfo?.tick_lower
+            const tickUpper = item.tickUpper ?? item.extraInfo?.tick_upper
+            return [
+              item.poolAddress || '-',
+              item.protocol || '-',
+              item.token0Symbol || item.tokenSymbolList?.[0] || '-',
+              item.token1Symbol || item.tokenSymbolList?.[1] || '-',
+              String(
+                item.liquidity ?? item.extraInfo?.position_liquidity ?? item.lpBalanceAmount ?? '-',
+              ),
+              tickLower !== undefined && tickUpper !== undefined
+                ? `[${tickLower}, ${tickUpper}]`
+                : '-',
+              String(item.amount0 ?? item.token0Amount ?? item.userTokenAmountList?.[0] ?? '-'),
+              String(item.amount1 ?? item.token1Amount ?? item.userTokenAmountList?.[1] ?? '-'),
+              formatUsd(item.valueUsd ?? item.totalValueUsd ?? item.lpBalanceUsd),
+            ]
+          },
         },
       })
     })
@@ -53,7 +75,16 @@ export function registerPositionCommands(program: Command) {
             pageNo: parseInt(opts.page),
             pageSize: parseInt(opts.pageSize),
           }),
-        transform: (result: any) => result.data || result,
+        tableConfig: {
+          headers: ['Pool', 'Tick', 'Liquidity Net', 'Price 0→1', 'Price 1→0'],
+          toRow: (item: any) => [
+            item.poolAddress || '-',
+            String(item.tick ?? item.tickLower ?? '-'),
+            String(item.liquidityNet ?? item.liquidity ?? '-'),
+            item.price0 ?? '-',
+            item.price1 ?? '-',
+          ],
+        },
       })
     })
 }

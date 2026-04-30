@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { readApiAction } from '../lib/command'
+import { formatUsd, formatPct, formatTime } from '../lib/output'
 
 export function registerFarmCommands(program: Command) {
   const farm = program.command('farm').description('Farming pools and positions')
@@ -20,15 +21,16 @@ export function registerFarmCommands(program: Command) {
             pageNo: parseInt(opts.page),
             pageSize: parseInt(opts.pageSize),
           }),
-        transform: (result: any) => result.data || result,
         tableConfig: {
-          headers: ['Farm', 'Token0', 'Token1', 'APR', 'TVL'],
+          headers: ['Farm', 'Name', 'Type', 'Stake Token', 'Reward Token', 'APY', 'TVL'],
           toRow: (item: any) => [
             item.farmAddress || item.address || '-',
-            item.token0Symbol || '-',
-            item.token1Symbol || '-',
-            item.apr || '-',
-            item.tvl || '-',
+            item.farmName || '-',
+            item.farmType || '-',
+            item.stakeTokenSymbol || item.token0Symbol || '-',
+            item.rewardTokenSymbol || item.rewardSymbol || '-',
+            formatPct(item.apy ?? item.apr),
+            formatUsd(item.totalLockedUsd ?? item.tvl ?? item.tvlUsd),
           ],
         },
       })
@@ -58,7 +60,17 @@ export function registerFarmCommands(program: Command) {
             pageNo: parseInt(opts.page),
             pageSize: parseInt(opts.pageSize),
           }),
-        transform: (result: any) => result.data || result,
+        tableConfig: {
+          headers: ['Time', 'Type', 'Farm', 'Owner', 'Amount', 'TxID'],
+          toRow: (item: any) => [
+            formatTime(item.timestamp ?? item.time ?? item.swapTime),
+            item.type || item.farmTxType || '-',
+            item.farmAddress || '-',
+            item.userAddress || item.owner || '-',
+            String(item.amount ?? item.tokenAmount ?? '-'),
+            (item.txId || item.transactionId || '-').toString().slice(0, 16) + '...',
+          ],
+        },
       })
     })
 
@@ -80,7 +92,40 @@ export function registerFarmCommands(program: Command) {
             pageNo: parseInt(opts.page),
             pageSize: parseInt(opts.pageSize),
           }),
-        transform: (result: any) => result.data || result,
+        tableConfig: {
+          headers: [
+            'Farm',
+            'Owner',
+            'Staked',
+            'Pending Reward',
+            'Reward Symbol',
+            'Subpool Pending Reward',
+            'Value',
+          ],
+          toRow: (item: any) => {
+            const pending =
+              item.pendingReward ??
+              item.rewardAmount ??
+              item.pendingRewardAmount ??
+              item.rewardBalance
+            const rewardSymbol = item.rewardTokenSymbol || item.rewardSymbol || ''
+            const subpoolAmount = item.subpoolRewardBalance ?? item.subpoolPendingReward
+            const subpoolSymbol = item.subpoolRewardTokenSymbol || ''
+            return [
+              item.farmAddress || '-',
+              item.userAddress || item.owner || '-',
+              String(
+                item.stakedAmount ?? item.staked ?? item.stakeAmount ?? item.positionBalance ?? '-',
+              ),
+              pending !== undefined ? `${pending}${rewardSymbol ? ` ${rewardSymbol}` : ''}` : '-',
+              rewardSymbol || '-',
+              subpoolAmount !== undefined
+                ? `${subpoolAmount}${subpoolSymbol ? ` ${subpoolSymbol}` : ''}`
+                : '-',
+              formatUsd(item.valueUsd ?? item.totalValueUsd ?? item.positionUsd),
+            ]
+          },
+        },
       })
     })
 }

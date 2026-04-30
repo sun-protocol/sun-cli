@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { readApiAction } from '../lib/command'
+import { formatTime } from '../lib/output'
 
 export function registerTxCommands(program: Command) {
   const tx = program.command('tx').description('Transaction history')
@@ -29,17 +30,16 @@ export function registerTxCommands(program: Command) {
             pageSize: opts.pageSize ? parseInt(opts.pageSize) : undefined,
             offset: opts.offset,
           }),
-        transform: (result: any) => result.data || result,
         tableConfig: {
-          headers: ['TxID', 'Type', 'Token0', 'Token1', 'Amount0', 'Amount1', 'Time'],
+          headers: ['Time', 'Type', 'Token0', 'Token1', 'Amount0', 'Amount1', 'TxID'],
           toRow: (item: any) => [
-            (item.txId || item.transactionId || '-').slice(0, 16) + '...',
+            formatTime(item.timestamp ?? item.time ?? item.swapTime),
             item.type || '-',
-            item.token0Symbol || '-',
-            item.token1Symbol || '-',
-            item.amount0 || '-',
-            item.amount1 || '-',
-            item.timestamp ? new Date(Number(item.timestamp)).toISOString() : '-',
+            item.token0Symbol || item.tokenSymbolList?.[0] || '-',
+            item.token1Symbol || item.tokenSymbolList?.[1] || '-',
+            String(item.amount0 ?? item.tokenAmountList?.[0] ?? '-'),
+            String(item.amount1 ?? item.tokenAmountList?.[1] ?? '-'),
+            (item.txId || item.transactionId || '-').toString().slice(0, 16) + '...',
           ],
         },
       })

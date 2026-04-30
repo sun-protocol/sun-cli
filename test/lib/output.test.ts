@@ -5,6 +5,10 @@ import {
   setJsonMode,
   outputJson,
   outputError,
+  formatUsd,
+  formatPct,
+  formatAmount,
+  formatTime,
 } from '../../src/lib/output'
 
 describe('filterFields', () => {
@@ -166,5 +170,77 @@ describe('outputError structured codes', () => {
   it('sets exit code to 1', () => {
     outputError('fail')
     expect(process.exitCode).toBe(1)
+  })
+})
+
+describe('formatUsd', () => {
+  it('formats large values with commas and 2 decimals', () => {
+    expect(formatUsd(1234567.89)).toBe('$1,234,567.89')
+  })
+
+  it('formats sub-dollar values with up to 6 decimals', () => {
+    expect(formatUsd(0.000123)).toBe('$0.000123')
+  })
+
+  it('returns fallback for null / empty / non-finite', () => {
+    expect(formatUsd(null)).toBe('-')
+    expect(formatUsd('')).toBe('-')
+    expect(formatUsd('abc')).toBe('-')
+  })
+
+  it('accepts numeric strings', () => {
+    expect(formatUsd('250')).toBe('$250')
+  })
+})
+
+describe('formatPct', () => {
+  it('treats decimal-fraction APR as percent', () => {
+    expect(formatPct(0.1234)).toBe('12.34%')
+  })
+
+  it('passes through values already in percent units', () => {
+    expect(formatPct(15)).toBe('15.00%')
+  })
+
+  it('returns fallback for missing values', () => {
+    expect(formatPct(undefined)).toBe('-')
+  })
+})
+
+describe('formatAmount', () => {
+  it('scales raw integer by token decimals', () => {
+    expect(formatAmount('1500000', 6)).toBe('1.5')
+  })
+
+  it('preserves whole-number commas when no fraction', () => {
+    expect(formatAmount('123456789', 0)).toBe('123456789')
+  })
+
+  it('handles negative values', () => {
+    expect(formatAmount('-1500000', 6)).toBe('-1.5')
+  })
+
+  it('returns fallback for empty input', () => {
+    expect(formatAmount('', 6)).toBe('-')
+  })
+})
+
+describe('formatTime', () => {
+  it('passes through ISO date strings', () => {
+    expect(formatTime('2024-05-01')).toBe('2024-05-01')
+  })
+
+  it('detects second-precision unix timestamps', () => {
+    const out = formatTime(1700000000)
+    expect(out).toMatch(/^2023-/)
+  })
+
+  it('detects millisecond-precision unix timestamps', () => {
+    const out = formatTime(1700000000000)
+    expect(out).toMatch(/^2023-/)
+  })
+
+  it('returns fallback for empty input', () => {
+    expect(formatTime('')).toBe('-')
   })
 })

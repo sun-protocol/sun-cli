@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 import { readApiAction } from '../lib/command'
+import { formatUsd } from '../lib/output'
 
 export function registerTokenCommands(program: Command) {
   const token = program.command('token').description('Token lookup and search')
@@ -26,14 +27,16 @@ export function registerTokenCommands(program: Command) {
             sort: opts.sort,
             filterBlackList: opts.blacklist !== false ? undefined : false,
           }),
-        transform: (result: any) => result.data || result,
         tableConfig: {
-          headers: ['Symbol', 'Address', 'Volume (24h)', 'Price'],
+          headers: ['Symbol', 'Protocol', 'Address', 'Decimals', 'Volume 24h', 'Price', 'TVL'],
           toRow: (item: any) => [
             item.symbol || item.tokenSymbol || '-',
+            item.protocol || '-',
             item.tokenAddress || item.address || '-',
-            item.volume24h || item.vol24h || '-',
-            item.priceInUsd || item.price || '-',
+            String(item.decimals ?? item.tokenDecimal ?? '-'),
+            formatUsd(item.volume24h ?? item.vol24h ?? item.volumeUsd1d),
+            formatUsd(item.priceInUsd ?? item.price ?? item.tokenPriceUsd),
+            formatUsd(item.tvl ?? item.tvlUsd ?? item.liquidityUsd ?? item.reserveUsd),
           ],
         },
       })
@@ -56,14 +59,15 @@ export function registerTokenCommands(program: Command) {
             pageNo: parseInt(opts.page),
             pageSize: parseInt(opts.pageSize),
           }),
-        transform: (result: any) => result.data || result,
         tableConfig: {
-          headers: ['Symbol', 'Address', 'Volume (24h)', 'Price'],
+          headers: ['Symbol', 'Protocol', 'Address', 'Decimals', 'Volume 24h', 'Price'],
           toRow: (item: any) => [
             item.symbol || item.tokenSymbol || '-',
+            item.protocol || '-',
             item.tokenAddress || item.address || '-',
-            item.volume24h || item.vol24h || '-',
-            item.priceInUsd || item.price || '-',
+            String(item.decimals ?? item.tokenDecimal ?? '-'),
+            formatUsd(item.volume24h ?? item.vol24h ?? item.volumeUsd1d),
+            formatUsd(item.priceInUsd ?? item.price ?? item.tokenPriceUsd),
           ],
         },
       })
