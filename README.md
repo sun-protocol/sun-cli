@@ -16,6 +16,9 @@
 - [Highlights](#highlights)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
+- [Getting Help](#getting-help)
+  - [Built-In Help](#built-in-help)
+  - [Shell Completion](#shell-completion)
 - [Configuration](#configuration)
   - [Wallet](#wallet)
   - [Network](#network)
@@ -136,6 +139,58 @@ Swap executed successfully
 ```
 
 > **Note:** Write operations (`swap`, `liquidity`, `contract send`) require a configured wallet. See [Configuration](#configuration).
+
+---
+
+## Getting Help
+
+### Built-In Help
+
+Every command level supports `--help` (or `-h`). Use it to discover options, subcommands, and flag aliases without leaving the terminal.
+
+| Command | What it shows |
+| --- | --- |
+| `sun --help` | Top-level overview, global flags, full command list |
+| `sun --version` | Installed CLI version |
+| `sun <group> --help` | Subcommand group help (e.g. `sun pool --help`, `sun liquidity --help`) |
+| `sun <group> <cmd> --help` | Leaf command help with all options (e.g. `sun pool top-apy --help`) |
+| `sun help <command>` | Equivalent to `<command> --help` |
+
+```bash
+sun --help                       # global flags + command list
+sun pool --help                  # all pool subcommands
+sun pool top-apy --help          # options for `pool top-apy`
+sun help swap                    # equivalent to `sun swap --help`
+sun --version                    # print installed version
+```
+
+### Shell Completion
+
+Tab completion is **not bundled**. The two snippets below give you top-level command-name completion in your shell — drop them in your shell rc file and re-source it.
+
+**zsh** (`~/.zshrc`):
+
+```zsh
+_sun_cmds() {
+  compadd -- wallet price swap swap:quote swap:quote-raw swap:exact-input \
+    token pool protocol tx position pair farm liquidity contract help
+}
+compdef _sun_cmds sun
+```
+
+**bash** (`~/.bashrc`):
+
+```bash
+_sun_cmds() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  COMPREPLY=( $(compgen -W "wallet price swap swap:quote swap:quote-raw \
+    swap:exact-input token pool protocol tx position pair farm liquidity \
+    contract help" -- "$cur") )
+}
+complete -F _sun_cmds sun
+```
+
+For richer completion (subcommands, flags, token symbols), wrap the CLI with [`omelette`](https://github.com/f/omelette) or [`tabtab`](https://github.com/mklabs/tabtab) — neither is required for normal use.
 
 ---
 
