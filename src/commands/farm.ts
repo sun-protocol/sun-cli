@@ -93,15 +93,38 @@ export function registerFarmCommands(program: Command) {
             pageSize: parseInt(opts.pageSize),
           }),
         tableConfig: {
-          headers: ['Farm', 'Owner', 'Staked', 'Pending Reward', 'Reward Symbol', 'Value'],
-          toRow: (item: any) => [
-            item.farmAddress || '-',
-            item.userAddress || item.owner || '-',
-            String(item.stakedAmount ?? item.staked ?? item.stakeAmount ?? '-'),
-            String(item.pendingReward ?? item.rewardAmount ?? item.pendingRewardAmount ?? '-'),
-            item.rewardTokenSymbol || item.rewardSymbol || '-',
-            formatUsd(item.valueUsd ?? item.totalValueUsd ?? item.positionUsd),
+          headers: [
+            'Farm',
+            'Owner',
+            'Staked',
+            'Pending Reward',
+            'Reward Symbol',
+            'Subpool Pending Reward',
+            'Value',
           ],
+          toRow: (item: any) => {
+            const pending =
+              item.pendingReward ??
+              item.rewardAmount ??
+              item.pendingRewardAmount ??
+              item.rewardBalance
+            const rewardSymbol = item.rewardTokenSymbol || item.rewardSymbol || ''
+            const subpoolAmount = item.subpoolRewardBalance ?? item.subpoolPendingReward
+            const subpoolSymbol = item.subpoolRewardTokenSymbol || ''
+            return [
+              item.farmAddress || '-',
+              item.userAddress || item.owner || '-',
+              String(
+                item.stakedAmount ?? item.staked ?? item.stakeAmount ?? item.positionBalance ?? '-',
+              ),
+              pending !== undefined ? `${pending}${rewardSymbol ? ` ${rewardSymbol}` : ''}` : '-',
+              rewardSymbol || '-',
+              subpoolAmount !== undefined
+                ? `${subpoolAmount}${subpoolSymbol ? ` ${subpoolSymbol}` : ''}`
+                : '-',
+              formatUsd(item.valueUsd ?? item.totalValueUsd ?? item.positionUsd),
+            ]
+          },
         },
       })
     })
