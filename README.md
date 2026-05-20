@@ -356,9 +356,10 @@ sun contract send <contractAddress> transfer  --args '["TRecipient","1000000"]' 
 
 ### SunPump
 
-Read-only access to the SunPump API — token launches, trending lists, candlesticks,
-holder portfolios, and red-packet/referral data. All endpoints are GET-only; no wallet
-required.
+Access to SunPump — read-only API for discovery (token launches, trending lists,
+candlesticks, holder portfolios, red-packet/referral data) plus on-chain trade
+commands (`buy`/`sell`/`quote-buy`/`quote-sell`/`state`) that talk to the bonding-curve
+contract through `sun-kit`. Read-only API calls need no wallet; trade commands do.
 
 - Mainnet (default): `https://api-v2.sunpump.meme/pump-api`
 - Nile testnet: `https://tn-api.sunpump.meme/pump-api` — use the global `--network nile` flag
@@ -384,6 +385,26 @@ sun sunpump red-packet remain --user-address T... --ip 1.2.3.4
 sun sunpump home banners 5
 sun sunpump campaign list
 ```
+
+Trade on the bonding curve (requires a wallet; pre-launch tokens only — once a token
+migrates to SunSwap, use `sun swap` instead):
+
+```bash
+sun sunpump state <contractAddress>                       # 0 NOT_EXIST · 1 TRADING · 2 READY_TO_LAUNCH · 3 LAUNCHED
+sun sunpump quote-buy  <contractAddress> --trx 10         # preview, no tx
+sun sunpump quote-sell <contractAddress> --amount 1000
+
+sun sunpump buy  <contractAddress> --trx 10                                 # spend 10 TRX
+sun sunpump buy  <contractAddress> --trx 10 --slippage 0.1                  # 10% slippage
+sun sunpump sell <contractAddress> --amount 1000                            # sell 1000 tokens (assumes 18 decimals)
+sun sunpump sell <contractAddress> --amount 1000 --decimals 6               # override token decimals
+sun --dry-run sunpump buy <contractAddress> --trx 10                        # show params without sending
+```
+
+`--trx` and `--amount` accept decimal values; CLI scales by TRX-Sun (1e6) and token
+decimals (default 18) before calling the contract. Default slippage is 5% (meme tokens
+move fast); pass `--slippage 0.005` for 0.5% or `--min-out <raw>` for an exact floor in
+base units.
 
 Endpoints requiring a signed message (`favors`, `red-packet by-user`, `referral
 rewards|invites`, `quota`) accept `--user-address`, `--signature`, `--signed-message`

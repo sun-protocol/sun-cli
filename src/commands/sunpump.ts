@@ -1,5 +1,6 @@
 import { Command } from 'commander'
-import { parseApiResponse } from '../lib/command'
+import { parseApiResponse, writeAction } from '../lib/command'
+import { getNetwork, getKit } from '../lib/context'
 import {
   output,
   outputError,
@@ -195,6 +196,54 @@ function tokenDetail(t: any): Record<string, unknown> | null {
     if (cex.length) set('Listed On', cex.join(', '))
   }
   return pairs
+}
+
+// Decimal string (e.g. "10.5") → integer string in base units, scaled by 10^decimals.
+function decimalToBaseUnits(value: string, decimals: number): string {
+  const trimmed = value.trim()
+  if (!/^-?\d+(\.\d+)?$/.test(trimmed)) {
+    throw new Error(`Invalid decimal amount: "${value}"`)
+  }
+  const negative = trimmed.startsWith('-')
+  const unsigned = negative ? trimmed.slice(1) : trimmed
+  const [whole, frac = ''] = unsigned.split('.')
+  if (frac.length > decimals) {
+    throw new Error(
+      `Amount "${value}" has more than ${decimals} decimal places (token precision limit).`,
+    )
+  }
+  const paddedFrac = (frac + '0'.repeat(decimals)).slice(0, decimals)
+  const scaled = BigInt(whole || '0') * 10n ** BigInt(decimals) + BigInt(paddedFrac || '0')
+  return (negative ? -scaled : scaled).toString()
+}
+
+const trxToSun = (trx: string) => decimalToBaseUnits(trx, 6)
+
+// Inverse: base-unit string → human-readable decimal.
+function baseUnitsToDecimal(raw: string | bigint, decimals: number): string {
+  const n = typeof raw === 'bigint' ? raw : BigInt(raw)
+  const negative = n < 0n
+  const abs = negative ? -n : n
+  const base = 10n ** BigInt(decimals)
+  const whole = (abs / base).toString()
+  const fracDigits = (abs % base).toString().padStart(decimals, '0').replace(/0+$/, '')
+  const out = fracDigits ? `${whole}.${fracDigits}` : whole
+  return negative ? `-${out}` : out
+}
+
+// SunKit's enum lists 0/1/2 but the contract uses extra states (e.g. 3 = launched-on-DEX).
+// Map what we know; surface raw values verbatim otherwise.
+const SUNPUMP_STATE_NAME: Record<number, string> = {
+  0: 'NOT_EXIST',
+  1: 'TRADING',
+  2: 'READY_TO_LAUNCH',
+  3: 'LAUNCHED',
+}
+
+function sunpumpStateLabel(state: number | undefined | null): string {
+  if (state === undefined || state === null) return '-'
+  const name = SUNPUMP_STATE_NAME[state]
+  return name ? `${name} (${state})` : `UNKNOWN (${state})`
 }
 
 function fmtNum(v: unknown, digits = 6): string {
@@ -897,6 +946,248 @@ export function registerSunpumpCommands(program: Command) {
             startTimeStr: opts.start,
             endTimeStr: opts.end,
           }),
+      })
+    })
+
+  // -------------------------- trade (buy/sell/quote/state) -----------------
+  sp.command('state <tokenAddress>')
+    .description(
+      'Show SunPump token state (0 NOT_EXIST, 1 TRADING, 2 READY_TO_LAUNCH, 3 LAUNCHED)',
+    )
+    .action(async (tokenAddress: string) => {
+      try {
+        const network = getNetwork()
+        const result = await withSpinner('Fetching token state...', async () => {
+          const kit = await getKit()
+          const state = await kit.getSunPumpTokenState(tokenAddress, network)
+          const info = await kit.getSunPumpTokenInfo(tokenAddress, network).catch(() => null)
+          return { state, info }
+        })
+        if (isJsonMode()) {
+          output({ ...result, stateName: sunpumpStateLabel(result.state) })
+          return
+        }
+        const pairs: Record<string, unknown> = {
+          Token: result.info?.tokenAddress ?? tokenAddress,
+          State: sunpumpStateLabel(result.state),
+          Launched: result.info?.launched === true ? 'yes' : 'no',
+        }
+        if (result.info?.price !== undefined) pairs['Price (raw)'] = String(result.info.price)
+        if (result.info?.trxReserve !== undefined) {
+          pairs['TRX Reserve'] = `${baseUnitsToDecimal(result.info.trxReserve, 6)} TRX`
+        }
+        if (result.info?.tokenReserve !== undefined) {
+          pairs['Token Reserve'] = baseUnitsToDecimal(result.info.tokenReserve, 18)
+        }
+        printKeyValue(pairs)
+      } catch (err: any) {
+        outputError('Failed to fetch state', err)
+      }
+    })
+
+  sp.command('quote-buy <tokenAddress>')
+    .description('Preview a SunPump buy without sending a transaction')
+    .requiredOption('--trx <amount>', 'TRX to spend (decimal, e.g. 10 or 1.5)')
+    .action(async (tokenAddress: string, opts) => {
+      let trxSun: string
+      try {
+        trxSun = trxToSun(opts.trx)
+      } catch (err: any) {
+        outputError('Invalid --trx', err)
+        return
+      }
+      try {
+        const network = getNetwork()
+        const quote: any = await withSpinner('Fetching buy quote...', async () => {
+          const kit = await getKit()
+          return kit.sunpumpQuoteBuy(tokenAddress, trxSun, network)
+        })
+        if (isJsonMode()) {
+          output({ ...quote, tokenAddress, trxSun, trxIn: opts.trx })
+          return
+        }
+        printKeyValue({
+          Token: tokenAddress,
+          'TRX In': `${opts.trx} TRX`,
+          'Tokens Out (expected)': baseUnitsToDecimal(quote.tokenAmount, 18),
+          Fee: `${baseUnitsToDecimal(quote.fee, 6)} TRX`,
+        })
+      } catch (err: any) {
+        outputError('Failed to fetch quote', err)
+      }
+    })
+
+  sp.command('quote-sell <tokenAddress>')
+    .description('Preview a SunPump sell without sending a transaction')
+    .requiredOption('--amount <amount>', 'Token amount to sell (decimal)')
+    .option('--decimals <n>', 'Token decimals (default 18)', '18')
+    .action(async (tokenAddress: string, opts) => {
+      const decimals = Number(opts.decimals) || 18
+      let tokenRaw: string
+      try {
+        tokenRaw = decimalToBaseUnits(opts.amount, decimals)
+      } catch (err: any) {
+        outputError('Invalid --amount', err)
+        return
+      }
+      try {
+        const network = getNetwork()
+        const quote: any = await withSpinner('Fetching sell quote...', async () => {
+          const kit = await getKit()
+          return kit.sunpumpQuoteSell(tokenAddress, tokenRaw, network)
+        })
+        if (isJsonMode()) {
+          output({ ...quote, tokenAddress, tokenRaw, amountIn: opts.amount })
+          return
+        }
+        printKeyValue({
+          Token: tokenAddress,
+          'Tokens In': `${opts.amount}`,
+          'TRX Out (expected)': `${baseUnitsToDecimal(quote.trxAmount, 6)} TRX`,
+          Fee: `${baseUnitsToDecimal(quote.fee, 6)} TRX`,
+        })
+      } catch (err: any) {
+        outputError('Failed to fetch quote', err)
+      }
+    })
+
+  sp.command('buy <tokenAddress>')
+    .description('Buy a SunPump token with TRX (bonding-curve, pre-launch only)')
+    .requiredOption('--trx <amount>', 'TRX to spend (decimal, e.g. 10 or 1.5)')
+    .option('--slippage <n>', 'Slippage tolerance (decimal, e.g. 0.05 = 5%)', '0.05')
+    .option('--min-out <raw>', 'Minimum tokens out in raw base units (overrides slippage)')
+    .action(async (tokenAddress: string, opts) => {
+      let trxSun: string
+      try {
+        trxSun = trxToSun(opts.trx)
+      } catch (err: any) {
+        outputError('Invalid --trx', err)
+        return
+      }
+      const slippage = parseFloat(opts.slippage)
+      const network = getNetwork()
+
+      const summary: Record<string, unknown> = {
+        Token: tokenAddress,
+        'TRX In': `${opts.trx} TRX (${trxSun} Sun)`,
+        Slippage: `${(slippage * 100).toFixed(2)}%`,
+        Network: network,
+      }
+      try {
+        const quote = await withSpinner('Fetching buy quote...', async () => {
+          const kit = await getKit()
+          return kit.sunpumpQuoteBuy(tokenAddress, trxSun, network)
+        })
+        summary['Tokens Out (expected)'] = baseUnitsToDecimal((quote as any).tokenAmount, 18)
+        summary['Fee'] = `${baseUnitsToDecimal((quote as any).fee, 6)} TRX`
+      } catch {
+        // Quote is best-effort; the real call below will surface the error.
+      }
+      if (opts.minOut) summary['Min Tokens Out (raw)'] = opts.minOut
+
+      await writeAction({
+        title: 'SunPump Buy Preview',
+        summary,
+        confirmMsg: 'Execute this buy?',
+        spinnerLabel: 'Submitting buy...',
+        errorLabel: 'Buy failed',
+        execute: (kit) =>
+          kit.sunpumpBuy({
+            tokenAddress,
+            trxAmount: trxSun,
+            minTokenOut: opts.minOut,
+            slippage,
+            network,
+          }),
+        onSuccess: async (result: any) => {
+          if (isJsonMode()) return
+          const chalk = (await import('chalk')).default
+          console.log()
+          console.log(chalk.green('Buy executed'))
+          if (result.expectedTokens) {
+            console.log(`  Expected: ${baseUnitsToDecimal(result.expectedTokens, 18)} tokens`)
+          }
+          if (result.minTokenOut) {
+            console.log(`  Min Out:  ${baseUnitsToDecimal(result.minTokenOut, 18)} tokens`)
+          }
+          if (result.txResult?.txid) {
+            console.log(`  TxID:     ${chalk.bold(result.txResult.txid)}`)
+          }
+          if (result.tronscanUrl) {
+            console.log(`  Tronscan: ${chalk.underline(result.tronscanUrl)}`)
+          }
+        },
+      })
+    })
+
+  sp.command('sell <tokenAddress>')
+    .description('Sell a SunPump token for TRX (bonding-curve, pre-launch only)')
+    .requiredOption('--amount <amount>', 'Token amount to sell (decimal)')
+    .option('--decimals <n>', 'Token decimals (default 18)', '18')
+    .option('--slippage <n>', 'Slippage tolerance (decimal, e.g. 0.05 = 5%)', '0.05')
+    .option('--min-out <raw>', 'Minimum TRX out in Sun (overrides slippage)')
+    .action(async (tokenAddress: string, opts) => {
+      const decimals = Number(opts.decimals) || 18
+      let tokenRaw: string
+      try {
+        tokenRaw = decimalToBaseUnits(opts.amount, decimals)
+      } catch (err: any) {
+        outputError('Invalid --amount', err)
+        return
+      }
+      const slippage = parseFloat(opts.slippage)
+      const network = getNetwork()
+
+      const summary: Record<string, unknown> = {
+        Token: tokenAddress,
+        'Tokens In': `${opts.amount} (${tokenRaw} raw)`,
+        Slippage: `${(slippage * 100).toFixed(2)}%`,
+        Network: network,
+      }
+      try {
+        const quote = await withSpinner('Fetching sell quote...', async () => {
+          const kit = await getKit()
+          return kit.sunpumpQuoteSell(tokenAddress, tokenRaw, network)
+        })
+        summary['TRX Out (expected)'] = `${baseUnitsToDecimal((quote as any).trxAmount, 6)} TRX`
+        summary['Fee'] = `${baseUnitsToDecimal((quote as any).fee, 6)} TRX`
+      } catch {
+        // Best-effort.
+      }
+      if (opts.minOut) summary['Min TRX Out (Sun)'] = opts.minOut
+
+      await writeAction({
+        title: 'SunPump Sell Preview',
+        summary,
+        confirmMsg: 'Execute this sell?',
+        spinnerLabel: 'Submitting sell...',
+        errorLabel: 'Sell failed',
+        execute: (kit) =>
+          kit.sunpumpSell({
+            tokenAddress,
+            tokenAmount: tokenRaw,
+            minTrxOut: opts.minOut,
+            slippage,
+            network,
+          }),
+        onSuccess: async (result: any) => {
+          if (isJsonMode()) return
+          const chalk = (await import('chalk')).default
+          console.log()
+          console.log(chalk.green('Sell executed'))
+          if (result.expectedTrx) {
+            console.log(`  Expected: ${baseUnitsToDecimal(result.expectedTrx, 6)} TRX`)
+          }
+          if (result.minTrxOut) {
+            console.log(`  Min Out:  ${baseUnitsToDecimal(result.minTrxOut, 6)} TRX`)
+          }
+          if (result.txResult?.txid) {
+            console.log(`  TxID:     ${chalk.bold(result.txResult.txid)}`)
+          }
+          if (result.tronscanUrl) {
+            console.log(`  Tronscan: ${chalk.underline(result.tronscanUrl)}`)
+          }
+        },
       })
     })
 
