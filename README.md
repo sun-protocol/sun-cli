@@ -403,9 +403,6 @@ Endpoints requiring a signed message (`favors`, `quota`) accept `--user-address`
 `sun --network nile sunpump ...`, or override the base URL with `SUNPUMP_API_BASE_URL`
 for a custom host.
 
-Full reference (request params, response schemas) is in
-[`docs/sunpump-api.md`](docs/sunpump-api.md) and
-[`docs/sunpump-api.zh-CN.md`](docs/sunpump-api.zh-CN.md).
 
 ---
 
