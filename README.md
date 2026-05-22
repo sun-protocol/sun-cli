@@ -398,7 +398,7 @@ decimals (default 18) before calling the contract. Default slippage is 5% (meme 
 move fast); pass `--slippage 0.005` for 0.5% or `--min-out <raw>` for an exact floor in
 base units.
 
-Endpoints requiring a signed message (`favors`, `quota`) accept `--user-address`,
+Endpoints requiring a signed message (`favors`) accept `--user-address`,
 `--signature`, `--signed-message` flags. Switch to nile testnet with
 `sun --network nile sunpump ...`, or override the base URL with `SUNPUMP_API_BASE_URL`
 for a custom host.

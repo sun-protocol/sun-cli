@@ -247,14 +247,6 @@ export class SunPump {
   ) {
     return this.request(`/holders/${encodeURIComponent(address)}/tokens`, query)
   }
-
-  // ---------------------------------------------------------------------------
-  // Third-platform open API
-  // ---------------------------------------------------------------------------
-
-  thirdPlatQuota(query: { thirdPlatUserAddress: string; message: string; signature: string }) {
-    return this.request('/open-api/internal/token/queryConfig', query)
-  }
 }
 
 const _clients = new Map<SunPumpNetwork, SunPump>()

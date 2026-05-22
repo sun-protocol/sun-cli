@@ -837,22 +837,4 @@ export function registerSunpumpCommands(program: Command) {
       })
     })
 
-  // -------------------------- third-platform quota -------------------------
-  sp.command('quota')
-    .description('Query third-platform token quota (signed)')
-    .requiredOption('--user-address <address>', 'Third-platform user address')
-    .requiredOption('--message <msg>', 'Message that was signed')
-    .requiredOption('--signature <sig>', 'Signature')
-    .action(async (opts) => {
-      await pumpAction({
-        spinnerLabel: 'Querying quota...',
-        errorLabel: 'Failed to query quota',
-        execute: (c) =>
-          c.thirdPlatQuota({
-            thirdPlatUserAddress: opts.userAddress,
-            message: opts.message,
-            signature: opts.signature,
-          }),
-      })
-    })
 }
