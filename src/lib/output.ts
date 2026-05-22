@@ -175,6 +175,9 @@ export function extractList(data: any): any[] | null {
     if (Array.isArray(data.data)) return data.data
     if (Array.isArray(data.tokens)) return data.tokens
     if (Array.isArray(data.pools)) return data.pools
+    if (Array.isArray(data.swaps)) return data.swaps
+    if (Array.isArray(data.holders)) return data.holders
+    if (Array.isArray(data.items)) return data.items
   }
   return null
 }

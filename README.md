@@ -29,6 +29,7 @@
   - [Liquidity](#liquidity)
   - [Protocol & History](#protocol--history)
   - [Generic Contract](#generic-contract)
+  - [SunPump](#sunpump)
 - [Global Flags](#global-flags)
 - [Output Formats](#output-formats)
 - [Built-In Token Symbols](#built-in-token-symbols)
@@ -148,13 +149,13 @@ Swap executed successfully
 
 Every command level supports `--help` (or `-h`). Use it to discover options, subcommands, and flag aliases without leaving the terminal.
 
-| Command | What it shows |
-| --- | --- |
-| `sun --help` | Top-level overview, global flags, full command list |
-| `sun --version` | Installed CLI version |
-| `sun <group> --help` | Subcommand group help (e.g. `sun pool --help`, `sun liquidity --help`) |
-| `sun <group> <cmd> --help` | Leaf command help with all options (e.g. `sun pool top-apy --help`) |
-| `sun help <command>` | Equivalent to `<command> --help` |
+| Command                    | What it shows                                                          |
+| -------------------------- | ---------------------------------------------------------------------- |
+| `sun --help`               | Top-level overview, global flags, full command list                    |
+| `sun --version`            | Installed CLI version                                                  |
+| `sun <group> --help`       | Subcommand group help (e.g. `sun pool --help`, `sun liquidity --help`) |
+| `sun <group> <cmd> --help` | Leaf command help with all options (e.g. `sun pool top-apy --help`)    |
+| `sun help <command>`       | Equivalent to `<command> --help`                                       |
 
 ```bash
 sun --help                       # global flags + command list
@@ -202,23 +203,23 @@ Wallets are managed by [`agent-wallet`](https://github.com/BofAI/agent-wallet?ta
 
 You can override wallet settings per-invocation with these root flags:
 
-| Flag | Purpose |
-| --- | --- |
-| `-k, --private-key <key>` | One-shot private key |
-| `-m, --mnemonic <phrase>` | One-shot mnemonic |
-| `-i, --mnemonic-account-index <n>` | Mnemonic account index |
+| Flag                               | Purpose                          |
+| ---------------------------------- | -------------------------------- |
+| `-k, --private-key <key>`          | One-shot private key             |
+| `-m, --mnemonic <phrase>`          | One-shot mnemonic                |
+| `-i, --mnemonic-account-index <n>` | Mnemonic account index           |
 | `-p, --agent-wallet-password <pw>` | Override `AGENT_WALLET_PASSWORD` |
-| `-d, --agent-wallet-dir <dir>` | Override `AGENT_WALLET_DIR` |
+| `-d, --agent-wallet-dir <dir>`     | Override `AGENT_WALLET_DIR`      |
 
 See [`agent-wallet`](https://github.com/BofAI/agent-wallet?tab=readme-ov-file#quick-start) for file formats and the full set of `AGENT_WALLET_*` options.
 
 ### Network
 
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `TRON_NETWORK` | Target network (`mainnet`, `nile`, …) | `mainnet` |
-| `TRONGRID_API_KEY` | TronGrid API key for higher rate limits | — |
-| `TRON_RPC_URL` | Custom RPC endpoint | — |
+| Variable           | Purpose                                 | Default   |
+| ------------------ | --------------------------------------- | --------- |
+| `TRON_NETWORK`     | Target network (`mainnet`, `nile`, …)   | `mainnet` |
+| `TRONGRID_API_KEY` | TronGrid API key for higher rate limits | —         |
+| `TRON_RPC_URL`     | Custom RPC endpoint                     | —         |
 
 ```bash
 export TRON_NETWORK=mainnet
@@ -353,25 +354,75 @@ sun contract send <contractAddress> transfer  --args '["TRecipient","1000000"]' 
 
 `contract send` returns a `tronscanUrl` on successful broadcast.
 
+### SunPump
+
+Access to SunPump — read-only API for discovery (token launches, trending lists,
+holder portfolios) plus on-chain trade commands
+(`buy`/`sell`/`quote-buy`/`quote-sell`/`state`) that talk to the bonding-curve
+contract through `sun-kit`. Read-only API calls need no wallet; trade commands do.
+
+SunPump is **mainnet only** — both the API host (`https://api-v2.sunpump.meme/pump-api`)
+and the on-chain bonding-curve contract. Passing `--network nile` (or any non-mainnet
+value) to a `sunpump` subcommand will fail fast.
+
+```bash
+sun sunpump token king-of-hill                     # current king-of-the-hill token
+sun sunpump token list --size 20 --sort marketCap,desc
+sun sunpump token search <keyword> --size 10
+sun sunpump token get <contractAddress>            # token detail
+sun sunpump token holders <contractAddress> --size 20
+sun sunpump token ranking --type MARKET_CAP --size 10        # also: VOLUME_24H, PRICE_CHANGE_24H
+
+sun sunpump tx token <contractAddress> --size 20   # swap history for a token
+sun sunpump tx user <walletAddress> --size 20      # swap history for a wallet
+
+sun sunpump portfolio <walletAddress> --include-zero
+```
+
+Trade on the bonding curve (requires a wallet; pre-launch tokens only — once a token
+migrates to SunSwap, use `sun swap` instead):
+
+```bash
+sun sunpump state <contractAddress>                       # 0 NOT_EXIST · 1 TRADING · 2 READY_TO_LAUNCH · 3 LAUNCHED
+sun sunpump quote-buy  <contractAddress> --trx 10         # preview, no tx
+sun sunpump quote-sell <contractAddress> --amount 1000
+
+sun sunpump buy  <contractAddress> --trx 10                                 # spend 10 TRX
+sun sunpump buy  <contractAddress> --trx 10 --slippage 0.1                  # 10% slippage
+sun sunpump sell <contractAddress> --amount 1000                            # sell 1000 tokens (assumes 18 decimals)
+sun sunpump sell <contractAddress> --amount 1000 --decimals 6               # override token decimals
+sun --dry-run sunpump buy <contractAddress> --trx 10                        # show params without sending
+```
+
+`--trx` and `--amount` accept decimal values; CLI scales by TRX-Sun (1e6) and token
+decimals (default 18) before calling the contract. Default slippage is 5% (meme tokens
+move fast); pass `--slippage 0.005` for 0.5% or `--min-out <raw>` for an exact floor in
+base units.
+
+Endpoints requiring a signed message (`favors`) accept `--user-address`,
+`--signature`, `--signed-message` flags. Override the base URL with
+`SUNPUMP_API_BASE_URL` only when you have a custom mainnet-compatible host.
+
+
 ---
 
 ## Global Flags
 
 Inherited by every subcommand:
 
-| Flag | Description |
-| --- | --- |
-| `--output <format>` | Output format: `table`, `json`, `tsv` |
-| `--json` | Shortcut for `--output json` |
-| `--fields <list>` | Comma-separated field filter |
-| `--network <network>` | Override `TRON_NETWORK` |
-| `-k, --private-key <key>` | One-shot private key |
-| `-m, --mnemonic <phrase>` | One-shot mnemonic |
-| `-i, --mnemonic-account-index <n>` | Mnemonic account index |
-| `-p, --agent-wallet-password <pw>` | Override `AGENT_WALLET_PASSWORD` |
-| `-d, --agent-wallet-dir <dir>` | Override `AGENT_WALLET_DIR` |
-| `-y, --yes` | Skip confirmation prompts |
-| `--dry-run` | Print intent without sending the write |
+| Flag                               | Description                            |
+| ---------------------------------- | -------------------------------------- |
+| `--output <format>`                | Output format: `table`, `json`, `tsv`  |
+| `--json`                           | Shortcut for `--output json`           |
+| `--fields <list>`                  | Comma-separated field filter           |
+| `--network <network>`              | Override `TRON_NETWORK`                |
+| `-k, --private-key <key>`          | One-shot private key                   |
+| `-m, --mnemonic <phrase>`          | One-shot mnemonic                      |
+| `-i, --mnemonic-account-index <n>` | Mnemonic account index                 |
+| `-p, --agent-wallet-password <pw>` | Override `AGENT_WALLET_PASSWORD`       |
+| `-d, --agent-wallet-dir <dir>`     | Override `AGENT_WALLET_DIR`            |
+| `-y, --yes`                        | Skip confirmation prompts              |
+| `--dry-run`                        | Print intent without sending the write |
 
 **Examples:**
 
@@ -387,11 +438,11 @@ sun --dry-run contract send TContract transfer --args '["TRecipient","1000000"]'
 
 ## Output Formats
 
-| Mode | When to use |
-| --- | --- |
-| `table` *(default)* | Human-friendly terminal output |
-| `json` | Machine-readable JSON for scripts and agents |
-| `tsv` | Tab-separated values for shell pipelines |
+| Mode                | When to use                                  |
+| ------------------- | -------------------------------------------- |
+| `table` _(default)_ | Human-friendly terminal output               |
+| `json`              | Machine-readable JSON for scripts and agents |
+| `tsv`               | Tab-separated values for shell pipelines     |
 
 ```bash
 sun pool top-apy --page-size 5
@@ -405,17 +456,17 @@ sun --output tsv token list --protocol V3
 
 Most commands accept these symbols anywhere a token is expected.
 
-| Symbol | Address | Decimals |
-| --- | --- | --- |
-| `TRX`  | `T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb` | 6 |
-| `WTRX` | `TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR` | 6 |
-| `USDT` | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | 6 |
-| `USDC` | `TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8` | 6 |
-| `USDD` | `TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn` | 18 |
-| `SUN`  | `TSSMHYeV2uE9qYH95DqyoCuNCzEL1NvU3S` | 18 |
-| `JST`  | `TCFLL5dx5ZJdKnWuesXxi1VPwjLVmWZZy9` | 18 |
-| `BTT`  | `TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4` | 18 |
-| `WIN`  | `TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7` | 6 |
+| Symbol | Address                              | Decimals |
+| ------ | ------------------------------------ | -------- |
+| `TRX`  | `T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb` | 6        |
+| `WTRX` | `TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR` | 6        |
+| `USDT` | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | 6        |
+| `USDC` | `TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8` | 6        |
+| `USDD` | `TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn` | 18       |
+| `SUN`  | `TSSMHYeV2uE9qYH95DqyoCuNCzEL1NvU3S` | 18       |
+| `JST`  | `TCFLL5dx5ZJdKnWuesXxi1VPwjLVmWZZy9` | 18       |
+| `BTT`  | `TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4` | 18       |
+| `WIN`  | `TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7` | 6        |
 
 Symbols and raw addresses are interchangeable:
 
@@ -430,11 +481,11 @@ sun swap T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t 1
 
 Quick lookup for the most common errors:
 
-| Error | Category | Jump to |
-| --- | --- | --- |
-| `unknown command 'nile'` | CLI parsing | [▸ Flag placement](#error-unknown-command-nile) |
-| `No wallet configured` | Wallet setup | [▸ Wallet sources](#error-no-wallet-configured) |
-| `Swap failed` | Execution | [▸ Swap diagnostics](#error-swap-failed) |
+| Error                    | Category     | Jump to                                         |
+| ------------------------ | ------------ | ----------------------------------------------- |
+| `unknown command 'nile'` | CLI parsing  | [▸ Flag placement](#error-unknown-command-nile) |
+| `No wallet configured`   | Wallet setup | [▸ Wallet sources](#error-no-wallet-configured) |
+| `Swap failed`            | Execution    | [▸ Swap diagnostics](#error-swap-failed)        |
 
 ### Error: `unknown command 'nile'`
 

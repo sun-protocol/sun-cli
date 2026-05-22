@@ -121,9 +121,24 @@ function unwrapApiData(raw: unknown): unknown {
 
 function readPagination(src: unknown): ApiPagination | undefined {
   if (!isPlainObject(src)) return undefined
+  const direct = readPaginationFlat(src)
+  if (direct) return direct
+  // Some SunPump endpoints nest pagination under `pageData` or `metadata`.
+  if (isPlainObject(src.pageData)) {
+    const nested = readPaginationFlat(src.pageData)
+    if (nested) return nested
+  }
+  if (isPlainObject(src.metadata)) {
+    const nested = readPaginationFlat(src.metadata)
+    if (nested) return nested
+  }
+  return undefined
+}
+
+function readPaginationFlat(src: Record<string, unknown>): ApiPagination | undefined {
   const total = (src.total ?? src.totalCount) as number | undefined
   const pageNo = (src.pageNo ?? src.page) as number | undefined
-  const pageSize = src.pageSize as number | undefined
+  const pageSize = (src.pageSize ?? src.size) as number | undefined
   const offset = (src.offset ?? src.next) as string | undefined
   if (
     total === undefined &&
