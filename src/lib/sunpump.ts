@@ -249,32 +249,6 @@ export class SunPump {
   }
 
   // ---------------------------------------------------------------------------
-  // Referral
-  // ---------------------------------------------------------------------------
-
-  referralRewards(query: {
-    signature: string
-    signedMessage: string
-    userAddress: string
-    pageNo?: number
-    pageSize?: number
-  }) {
-    return this.request('/referral/getRewardsPaid', query)
-  }
-
-  referralInvites(query: {
-    signature: string
-    signedMessage: string
-    userAddress: string
-    startDate?: string
-    endDate?: string
-    pageNo?: number
-    pageSize?: number
-  }) {
-    return this.request('/referral/getInviteDetails', query)
-  }
-
-  // ---------------------------------------------------------------------------
   // Third-platform open API
   // ---------------------------------------------------------------------------
 

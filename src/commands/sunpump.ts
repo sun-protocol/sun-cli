@@ -594,58 +594,6 @@ export function registerSunpumpCommands(program: Command) {
       })
     })
 
-  // -------------------------- referral -------------------------------------
-  const ref = sp.command('referral').description('Referral rewards and invite details')
-
-  ref
-    .command('rewards')
-    .description('Referral rewards paid (signed)')
-    .requiredOption('--user-address <address>', 'User wallet address')
-    .requiredOption('--signature <sig>', 'Signature')
-    .requiredOption('--signed-message <msg>', 'Signed message')
-    .option('--page <n>', 'Page number')
-    .option('--page-size <n>', 'Page size')
-    .action(async (opts) => {
-      await pumpAction({
-        spinnerLabel: 'Fetching referral rewards...',
-        errorLabel: 'Failed to fetch rewards',
-        execute: (c) =>
-          c.referralRewards({
-            userAddress: opts.userAddress,
-            signature: opts.signature,
-            signedMessage: opts.signedMessage,
-            pageNo: toIntOrUndef(opts.page),
-            pageSize: toIntOrUndef(opts.pageSize),
-          }),
-      })
-    })
-
-  ref
-    .command('invites')
-    .description('Referral invite details (signed)')
-    .requiredOption('--user-address <address>', 'User wallet address')
-    .requiredOption('--signature <sig>', 'Signature')
-    .requiredOption('--signed-message <msg>', 'Signed message')
-    .option('--start-date <date>', 'Start date (YYYY-MM-DD)')
-    .option('--end-date <date>', 'End date (YYYY-MM-DD)')
-    .option('--page <n>', 'Page number')
-    .option('--page-size <n>', 'Page size')
-    .action(async (opts) => {
-      await pumpAction({
-        spinnerLabel: 'Fetching invite details...',
-        errorLabel: 'Failed to fetch invites',
-        execute: (c) =>
-          c.referralInvites({
-            userAddress: opts.userAddress,
-            signature: opts.signature,
-            signedMessage: opts.signedMessage,
-            startDate: opts.startDate,
-            endDate: opts.endDate,
-            pageNo: toIntOrUndef(opts.page),
-            pageSize: toIntOrUndef(opts.pageSize),
-          }),
-      })
-    })
 
   // -------------------------- trade (buy/sell/quote/state) -----------------
   sp.command('state <tokenAddress>')

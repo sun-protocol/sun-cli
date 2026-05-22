@@ -357,7 +357,7 @@ sun contract send <contractAddress> transfer  --args '["TRecipient","1000000"]' 
 ### SunPump
 
 Access to SunPump — read-only API for discovery (token launches, trending lists,
-holder portfolios, referral data) plus on-chain trade commands
+holder portfolios) plus on-chain trade commands
 (`buy`/`sell`/`quote-buy`/`quote-sell`/`state`) that talk to the bonding-curve
 contract through `sun-kit`. Read-only API calls need no wallet; trade commands do.
 
@@ -398,10 +398,10 @@ decimals (default 18) before calling the contract. Default slippage is 5% (meme 
 move fast); pass `--slippage 0.005` for 0.5% or `--min-out <raw>` for an exact floor in
 base units.
 
-Endpoints requiring a signed message (`favors`, `referral rewards|invites`, `quota`)
-accept `--user-address`, `--signature`, `--signed-message` flags. Switch to nile
-testnet with `sun --network nile sunpump ...`, or override the base URL with
-`SUNPUMP_API_BASE_URL` for a custom host.
+Endpoints requiring a signed message (`favors`, `quota`) accept `--user-address`,
+`--signature`, `--signed-message` flags. Switch to nile testnet with
+`sun --network nile sunpump ...`, or override the base URL with `SUNPUMP_API_BASE_URL`
+for a custom host.
 
 Full reference (request params, response schemas) is in
 [`docs/sunpump-api.md`](docs/sunpump-api.md) and
