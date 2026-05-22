@@ -275,14 +275,6 @@ export class SunPump {
   }
 
   // ---------------------------------------------------------------------------
-  // Admin
-  // ---------------------------------------------------------------------------
-
-  adminSummary(query: { password: string; startTimeStr: string; endTimeStr?: string }) {
-    return this.request('/data/summaryLaunchedTokenInfo', query)
-  }
-
-  // ---------------------------------------------------------------------------
   // Third-platform open API
   // ---------------------------------------------------------------------------
 

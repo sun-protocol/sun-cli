@@ -647,25 +647,6 @@ export function registerSunpumpCommands(program: Command) {
       })
     })
 
-  // -------------------------- admin ----------------------------------------
-  sp.command('admin-summary')
-    .description('Launched-token summary (admin)')
-    .requiredOption('--password <password>', 'Admin password')
-    .requiredOption('--start <YYYY-MM-DD>', 'Start time string')
-    .option('--end <YYYY-MM-DD>', 'End time string')
-    .action(async (opts) => {
-      await pumpAction({
-        spinnerLabel: 'Fetching admin summary...',
-        errorLabel: 'Failed to fetch summary',
-        execute: (c) =>
-          c.adminSummary({
-            password: opts.password,
-            startTimeStr: opts.start,
-            endTimeStr: opts.end,
-          }),
-      })
-    })
-
   // -------------------------- trade (buy/sell/quote/state) -----------------
   sp.command('state <tokenAddress>')
     .description(
