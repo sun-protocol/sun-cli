@@ -13,7 +13,7 @@ import {
   formatAmount,
   formatPct,
 } from '../lib/output'
-import { getSunPump, SunPump, SunPumpNetwork } from '../lib/sunpump'
+import { getSunPump, SunPump } from '../lib/sunpump'
 
 // ---------------------------------------------------------------------------
 // pumpAction — local mirror of readApiAction but for the SunPump client.
@@ -31,11 +31,19 @@ interface PumpActionOpts<T> {
   detailFor?: (data: any) => Record<string, unknown> | null
 }
 
-let currentNetwork: SunPumpNetwork = 'mainnet'
+function assertMainnet(): void {
+  const n = getNetwork()
+  if (n && n !== 'mainnet') {
+    throw new Error(
+      `SunPump is only available on mainnet (got "${n}"). Drop --network or pass --network mainnet.`,
+    )
+  }
+}
 
 async function pumpAction<T>(opts: PumpActionOpts<T>): Promise<void> {
   try {
-    const client = getSunPump(currentNetwork)
+    assertMainnet()
+    const client = getSunPump()
     const raw = await withSpinner(opts.spinnerLabel, () => opts.execute(client))
 
     let data: unknown = raw
@@ -270,12 +278,9 @@ const portfolioTable = {
 export function registerSunpumpCommands(program: Command) {
   const sp = program
     .command('sunpump')
-    .description(
-      'SunPump read-only endpoints (mainnet: api-v2.sunpump.meme, nile: tn-api.sunpump.meme). Use global --network nile for testnet.',
-    )
+    .description('SunPump endpoints (mainnet only: api-v2.sunpump.meme).')
     .hook('preAction', () => {
-      const n = program.opts().network ?? process.env.TRON_NETWORK
-      currentNetwork = n === 'nile' ? 'nile' : 'mainnet'
+      assertMainnet()
     })
 
   // -------------------------- token group ----------------------------------

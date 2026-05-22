@@ -1,8 +1,7 @@
 /**
  * SunPump API client — read-only GET endpoints.
  *
- * - Mainnet: https://api-v2.sunpump.meme/pump-api
- * - Nile testnet: https://tn-api.sunpump.meme/pump-api
+ * Mainnet only: https://api-v2.sunpump.meme/pump-api
  *
  * Standalone from sun-kit's SunAPI: SunPump is a separate service with its own
  * base URL and schema. Uses Node's global fetch (>=18).
@@ -10,19 +9,10 @@
  * Methods mirror the OpenAPI operationIds documented in docs/sunpump-api.md.
  */
 
-export const SUNPUMP_MAINNET_BASE_URL = 'https://api-v2.sunpump.meme/pump-api'
-export const SUNPUMP_NILE_BASE_URL = 'https://tn-api.sunpump.meme/pump-api'
-export const SUNPUMP_DEFAULT_BASE_URL = SUNPUMP_MAINNET_BASE_URL
-
-export type SunPumpNetwork = 'mainnet' | 'nile'
-
-export function sunPumpBaseUrlFor(network: SunPumpNetwork): string {
-  return network === 'nile' ? SUNPUMP_NILE_BASE_URL : SUNPUMP_MAINNET_BASE_URL
-}
+export const SUNPUMP_DEFAULT_BASE_URL = 'https://api-v2.sunpump.meme/pump-api'
 
 export interface SunPumpClientOptions {
   baseUrl?: string
-  network?: SunPumpNetwork
   fetchImpl?: typeof fetch
 }
 
@@ -57,11 +47,7 @@ export class SunPump {
   private readonly fetchImpl: typeof fetch
 
   constructor(opts: SunPumpClientOptions = {}) {
-    const base =
-      opts.baseUrl ??
-      (opts.network ? sunPumpBaseUrlFor(opts.network) : undefined) ??
-      process.env.SUNPUMP_API_BASE_URL ??
-      SUNPUMP_DEFAULT_BASE_URL
+    const base = opts.baseUrl ?? process.env.SUNPUMP_API_BASE_URL ?? SUNPUMP_DEFAULT_BASE_URL
     this.baseUrl = base.replace(/\/+$/, '')
     this.fetchImpl = opts.fetchImpl ?? fetch
   }
@@ -249,13 +235,9 @@ export class SunPump {
   }
 }
 
-const _clients = new Map<SunPumpNetwork, SunPump>()
+let _client: SunPump | null = null
 
-export function getSunPump(network: SunPumpNetwork = 'mainnet'): SunPump {
-  let c = _clients.get(network)
-  if (!c) {
-    c = new SunPump({ network })
-    _clients.set(network, c)
-  }
-  return c
+export function getSunPump(): SunPump {
+  if (!_client) _client = new SunPump()
+  return _client
 }
