@@ -231,38 +231,6 @@ export class SunPump {
     return this.request(`/transactions/holder/${encodeURIComponent(ownerAddress)}`, query)
   }
 
-  recentTransactions(
-    number: number,
-    query: { symbol?: string; valueGreaterEqualTo?: number } = {},
-  ) {
-    return this.request(`/transactions/ticker/${number}`, query)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Klines
-  // ---------------------------------------------------------------------------
-
-  kline(query: { address: string; granularity?: string; startTime?: number; endTime?: number }) {
-    return this.request('/klines', query)
-  }
-
-  klineV2(query: { address: string; granularity?: string; startTime?: number; endTime?: number }) {
-    return this.request('/klinesV2', query)
-  }
-
-  klineV3(query: {
-    address: string
-    granularity?: string
-    startTime?: number
-    endTime?: number
-    returnClosestBeforeStartIfEmpty?: boolean
-    defaultFrame?: boolean
-    with24HrData?: boolean
-    usdValue?: boolean
-  }) {
-    return this.request('/klinesV3', query)
-  }
-
   // ---------------------------------------------------------------------------
   // Holder portfolio
   // ---------------------------------------------------------------------------
@@ -278,32 +246,6 @@ export class SunPump {
     } = {},
   ) {
     return this.request(`/holders/${encodeURIComponent(address)}/tokens`, query)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Sun Agent (Red Packet)
-  // ---------------------------------------------------------------------------
-
-  redPacket(packetId: number) {
-    return this.request(`/sunAgent/redPacket/${packetId}`)
-  }
-
-  redPacketRemain(query: { userAddress: string; ip: string }) {
-    return this.request('/sunAgent/redPacket/queryRemain', query)
-  }
-
-  redPacketByUser(query: {
-    signature: string
-    signedMessage: string
-    userAddress: string
-    page?: number
-    size?: number
-  }) {
-    return this.request('/sunAgent/redPacket/findByUserAddress', query)
-  }
-
-  tranSummary(query: { fromDate: string; toDate: string; tokenFlag?: string }) {
-    return this.request('/sunAgent/queryTranSummary', query)
   }
 
   // ---------------------------------------------------------------------------
@@ -330,34 +272,6 @@ export class SunPump {
     pageSize?: number
   }) {
     return this.request('/referral/getInviteDetails', query)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Home Info
-  // ---------------------------------------------------------------------------
-
-  homeStats() {
-    return this.request('/home/statistics')
-  }
-
-  homeAppData() {
-    return this.request('/home/system/data')
-  }
-
-  homeBanners(count: number) {
-    return this.request(`/home/banner/top/${count}`)
-  }
-
-  // ---------------------------------------------------------------------------
-  // Campaign
-  // ---------------------------------------------------------------------------
-
-  campaigns(query: { page?: number; size?: number } = {}) {
-    return this.request('/campaign/campaigns', query)
-  }
-
-  campaignBanners(query: { page?: number; size?: number } = {}) {
-    return this.request('/campaign/banners', query)
   }
 
   // ---------------------------------------------------------------------------

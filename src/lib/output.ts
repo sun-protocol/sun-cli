@@ -177,10 +177,7 @@ export function extractList(data: any): any[] | null {
     if (Array.isArray(data.pools)) return data.pools
     if (Array.isArray(data.swaps)) return data.swaps
     if (Array.isArray(data.holders)) return data.holders
-    if (Array.isArray(data.klines)) return data.klines
     if (Array.isArray(data.items)) return data.items
-    if (Array.isArray(data.campaigns)) return data.campaigns
-    if (Array.isArray(data.banners)) return data.banners
   }
   return null
 }

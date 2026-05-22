@@ -67,12 +67,6 @@ function toIntOrUndef(v: unknown): number | undefined {
   return Number.isFinite(n) ? Math.trunc(n) : undefined
 }
 
-function toNumOrUndef(v: unknown): number | undefined {
-  if (v === undefined || v === null || v === '') return undefined
-  const n = Number(v)
-  return Number.isFinite(n) ? n : undefined
-}
-
 // ---------------------------------------------------------------------------
 // Shared table configs
 // ---------------------------------------------------------------------------
@@ -266,47 +260,6 @@ const portfolioTable = {
     t.percentage !== undefined && t.percentage !== null
       ? `${(Number(t.percentage) * 100).toPrecision(4)}%`
       : '-',
-  ],
-}
-
-function truncate(s: unknown, max: number): string {
-  if (s === undefined || s === null) return '-'
-  const str = String(s).replace(/\s+/g, ' ').trim()
-  if (str.length <= max) return str
-  return str.slice(0, max - 1) + '…'
-}
-
-function campaignStatus(startMs: unknown, endMs: unknown): string {
-  const s = Number(startMs)
-  const e = Number(endMs)
-  const now = Date.now()
-  if (Number.isFinite(e) && now > e) return 'expired'
-  if (Number.isFinite(s) && now < s) return 'upcoming'
-  if (Number.isFinite(s) && Number.isFinite(e) && now >= s && now <= e) return 'active'
-  return '-'
-}
-
-const campaignTable = {
-  headers: ['ID', 'Title', 'Status', 'Start', 'End', 'Link'],
-  toRow: (c: any) => [
-    String(c.id ?? '-'),
-    truncate(c.title, 40),
-    campaignStatus(c.startTime, c.endTime),
-    formatTime(c.startTime),
-    formatTime(c.endTime),
-    c.redirectUrl ?? '-',
-  ],
-}
-
-const klineTable = {
-  headers: ['Time', 'Open', 'High', 'Low', 'Close', 'Volume'],
-  toRow: (k: any) => [
-    formatTime(k.startTime ?? k.timestamp ?? k.t),
-    String(k.open ?? k.o ?? '-'),
-    String(k.high ?? k.h ?? '-'),
-    String(k.low ?? k.l ?? '-'),
-    String(k.close ?? k.c ?? '-'),
-    String(k.volume ?? k.v ?? '-'),
   ],
 }
 
@@ -617,92 +570,6 @@ export function registerSunpumpCommands(program: Command) {
     })
   })
 
-  tx.command('ticker <number>')
-    .description(
-      'Recent swap transactions (ticker feed). Server hard-caps the response at ~15 rows regardless of <number>; for larger history use `tx token` or `tx user`.',
-    )
-    .option('--symbol <symbol>', 'Filter by symbol')
-    .option('--min-value <usd>', 'Minimum trade value in USD')
-    .action(async (numberArg: string, opts) => {
-      await pumpAction({
-        spinnerLabel: 'Fetching ticker...',
-        errorLabel: 'Failed to fetch ticker',
-        execute: (c) =>
-          c.recentTransactions(toIntOrUndef(numberArg) ?? 50, {
-            symbol: opts.symbol,
-            valueGreaterEqualTo: toNumOrUndef(opts.minValue),
-          }),
-        tableConfig: txTable,
-      })
-    })
-
-  // -------------------------- kline group ----------------------------------
-  const kline = sp.command('kline').description('OHLCV candlestick data')
-
-  const addKlineOptions = (cmd: Command) =>
-    cmd
-      .option('--granularity <g>', 'Candle granularity (e.g. 1m, 5m, 1h, 1d)')
-      .option('--start-time <epoch>', 'Start time (epoch seconds)')
-      .option('--end-time <epoch>', 'End time (epoch seconds)')
-
-  addKlineOptions(kline.command('v1 <address>').alias('get').description('Kline v1')).action(
-    async (address: string, opts) => {
-      await pumpAction({
-        spinnerLabel: 'Fetching kline...',
-        errorLabel: 'Failed to fetch kline',
-        execute: (c) =>
-          c.kline({
-            address,
-            granularity: opts.granularity,
-            startTime: toIntOrUndef(opts.startTime),
-            endTime: toIntOrUndef(opts.endTime),
-          }),
-        tableConfig: klineTable,
-      })
-    },
-  )
-
-  addKlineOptions(kline.command('v2 <address>').description('Kline v2')).action(
-    async (address: string, opts) => {
-      await pumpAction({
-        spinnerLabel: 'Fetching kline v2...',
-        errorLabel: 'Failed to fetch kline',
-        execute: (c) =>
-          c.klineV2({
-            address,
-            granularity: opts.granularity,
-            startTime: toIntOrUndef(opts.startTime),
-            endTime: toIntOrUndef(opts.endTime),
-          }),
-        tableConfig: klineTable,
-      })
-    },
-  )
-
-  addKlineOptions(kline.command('v3 <address>').description('Kline v3 (extra flags)'))
-    .option('--closest-before-start', 'returnClosestBeforeStartIfEmpty')
-    .option('--default-frame', 'defaultFrame')
-    .option('--with-24hr', 'with24HrData')
-    .option('--usd-value', 'usdValue (price in USD instead of TRX)')
-    .action(async (address: string, opts) => {
-      await pumpAction({
-        spinnerLabel: 'Fetching kline v3...',
-        errorLabel: 'Failed to fetch kline',
-        execute: (c) =>
-          c.klineV3({
-            address,
-            granularity: opts.granularity,
-            startTime: toIntOrUndef(opts.startTime),
-            endTime: toIntOrUndef(opts.endTime),
-            returnClosestBeforeStartIfEmpty: opts.closestBeforeStart || undefined,
-            defaultFrame: opts.defaultFrame || undefined,
-            with24HrData: opts.with24Hr || undefined,
-            usdValue: opts.usdValue || undefined,
-          }),
-        tableConfig: klineTable,
-      })
-    })
-
   // -------------------------- portfolio ------------------------------------
   sp.command('portfolio <walletAddress>')
     .description('Get tokens held by a wallet (with TRX value filter)')
@@ -724,76 +591,6 @@ export function registerSunpumpCommands(program: Command) {
             sort: opts.sort,
           }),
         tableConfig: portfolioTable,
-      })
-    })
-
-  // -------------------------- red-packet -----------------------------------
-  const rp = sp.command('red-packet').description('Sun Agent red packets')
-
-  rp.command('get <packetId>')
-    .description('Get red packet by id')
-    .action(async (packetId: string) => {
-      const id = toIntOrUndef(packetId)
-      if (id === undefined) {
-        outputError('Invalid packetId', new Error('packetId must be an integer'))
-        return
-      }
-      await pumpAction({
-        spinnerLabel: 'Fetching red packet...',
-        errorLabel: 'Failed to fetch red packet',
-        execute: (c) => c.redPacket(id),
-      })
-    })
-
-  rp.command('remain')
-    .description('Query remaining red-packet claim quota')
-    .requiredOption('--user-address <address>', 'User wallet address')
-    .requiredOption('--ip <ip>', 'Client IP')
-    .action(async (opts) => {
-      await pumpAction({
-        spinnerLabel: 'Querying red-packet remain...',
-        errorLabel: 'Failed to query remain',
-        execute: (c) => c.redPacketRemain({ userAddress: opts.userAddress, ip: opts.ip }),
-      })
-    })
-
-  rp.command('by-user')
-    .description('List red packets by user (signed)')
-    .requiredOption('--user-address <address>', 'User wallet address')
-    .requiredOption('--signature <sig>', 'Signature')
-    .requiredOption('--signed-message <msg>', 'Signed message')
-    .option('--page <n>', 'Page number')
-    .option('--size <n>', 'Page size')
-    .action(async (opts) => {
-      await pumpAction({
-        spinnerLabel: 'Fetching red packets...',
-        errorLabel: 'Failed to fetch red packets',
-        execute: (c) =>
-          c.redPacketByUser({
-            userAddress: opts.userAddress,
-            signature: opts.signature,
-            signedMessage: opts.signedMessage,
-            page: toIntOrUndef(opts.page),
-            size: toIntOrUndef(opts.size),
-          }),
-      })
-    })
-
-  rp.command('summary')
-    .description('Red-packet transaction summary by date range')
-    .requiredOption('--from <date>', 'From date (YYYY-MM-DD)')
-    .requiredOption('--to <date>', 'To date (YYYY-MM-DD)')
-    .option('--token-flag <flag>', 'Token flag filter')
-    .action(async (opts) => {
-      await pumpAction({
-        spinnerLabel: 'Fetching summary...',
-        errorLabel: 'Failed to fetch summary',
-        execute: (c) =>
-          c.tranSummary({
-            fromDate: opts.from,
-            toDate: opts.to,
-            tokenFlag: opts.tokenFlag,
-          }),
       })
     })
 
@@ -847,86 +644,6 @@ export function registerSunpumpCommands(program: Command) {
             pageNo: toIntOrUndef(opts.page),
             pageSize: toIntOrUndef(opts.pageSize),
           }),
-      })
-    })
-
-  // -------------------------- home -----------------------------------------
-  const home = sp.command('home').description('Home page data and banners')
-
-  home
-    .command('stats')
-    .description('Home page statistics')
-    .action(async () => {
-      await pumpAction({
-        spinnerLabel: 'Fetching home stats...',
-        errorLabel: 'Failed to fetch stats',
-        execute: (c) => c.homeStats(),
-      })
-    })
-
-  home
-    .command('data')
-    .description('Overall app data')
-    .action(async () => {
-      await pumpAction({
-        spinnerLabel: 'Fetching app data...',
-        errorLabel: 'Failed to fetch app data',
-        execute: (c) => c.homeAppData(),
-      })
-    })
-
-  home
-    .command('banners <count>')
-    .description('Top N home banners')
-    .action(async (count: string) => {
-      const n = toIntOrUndef(count)
-      if (n === undefined) {
-        outputError('Invalid count', new Error('count must be an integer'))
-        return
-      }
-      await pumpAction({
-        spinnerLabel: 'Fetching banners...',
-        errorLabel: 'Failed to fetch banners',
-        execute: (c) => c.homeBanners(n),
-      })
-    })
-
-  // -------------------------- campaign -------------------------------------
-  const camp = sp.command('campaign').description('Campaigns and banners')
-
-  camp
-    .command('list')
-    .description('List campaigns')
-    .option('--page <n>', 'Page number')
-    .option('--size <n>', 'Page size')
-    .action(async (opts) => {
-      await pumpAction({
-        spinnerLabel: 'Fetching campaigns...',
-        errorLabel: 'Failed to fetch campaigns',
-        execute: (c) =>
-          c.campaigns({
-            page: toIntOrUndef(opts.page),
-            size: toIntOrUndef(opts.size),
-          }),
-        tableConfig: campaignTable,
-      })
-    })
-
-  camp
-    .command('banners')
-    .description('List campaign banners')
-    .option('--page <n>', 'Page number')
-    .option('--size <n>', 'Page size')
-    .action(async (opts) => {
-      await pumpAction({
-        spinnerLabel: 'Fetching campaign banners...',
-        errorLabel: 'Failed to fetch banners',
-        execute: (c) =>
-          c.campaignBanners({
-            page: toIntOrUndef(opts.page),
-            size: toIntOrUndef(opts.size),
-          }),
-        tableConfig: campaignTable,
       })
     })
 

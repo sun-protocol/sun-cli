@@ -357,15 +357,14 @@ sun contract send <contractAddress> transfer  --args '["TRecipient","1000000"]' 
 ### SunPump
 
 Access to SunPump — read-only API for discovery (token launches, trending lists,
-candlesticks, holder portfolios, red-packet/referral data) plus on-chain trade
-commands (`buy`/`sell`/`quote-buy`/`quote-sell`/`state`) that talk to the bonding-curve
+holder portfolios, referral data) plus on-chain trade commands
+(`buy`/`sell`/`quote-buy`/`quote-sell`/`state`) that talk to the bonding-curve
 contract through `sun-kit`. Read-only API calls need no wallet; trade commands do.
 
 - Mainnet (default): `https://api-v2.sunpump.meme/pump-api`
 - Nile testnet: `https://tn-api.sunpump.meme/pump-api` — use the global `--network nile` flag
 
 ```bash
-sun sunpump home stats                             # quick volume/launch counters
 sun sunpump token king-of-hill                     # current king-of-the-hill token
 sun sunpump token list --size 20 --sort marketCap,desc
 sun sunpump token search <keyword> --size 10
@@ -375,15 +374,8 @@ sun sunpump token ranking --type MARKET_CAP --size 10        # also: VOLUME_24H,
 
 sun sunpump tx token <contractAddress> --size 20   # swap history for a token
 sun sunpump tx user <walletAddress> --size 20      # swap history for a wallet
-sun sunpump tx ticker 50                           # latest ticker feed (server caps at ~15 rows regardless of N)
 
-sun sunpump kline v3 <contractAddress> --granularity 1m
 sun sunpump portfolio <walletAddress> --include-zero
-
-sun sunpump red-packet get <packetId>
-sun sunpump red-packet remain --user-address T... --ip 1.2.3.4
-sun sunpump home banners 5
-sun sunpump campaign list
 ```
 
 Trade on the bonding curve (requires a wallet; pre-launch tokens only — once a token
@@ -406,10 +398,10 @@ decimals (default 18) before calling the contract. Default slippage is 5% (meme 
 move fast); pass `--slippage 0.005` for 0.5% or `--min-out <raw>` for an exact floor in
 base units.
 
-Endpoints requiring a signed message (`favors`, `red-packet by-user`, `referral
-rewards|invites`, `quota`) accept `--user-address`, `--signature`, `--signed-message`
-flags. Switch to nile testnet with `sun --network nile sunpump ...`, or override the
-base URL with `SUNPUMP_API_BASE_URL` for a custom host.
+Endpoints requiring a signed message (`favors`, `referral rewards|invites`, `quota`)
+accept `--user-address`, `--signature`, `--signed-message` flags. Switch to nile
+testnet with `sun --network nile sunpump ...`, or override the base URL with
+`SUNPUMP_API_BASE_URL` for a custom host.
 
 Full reference (request params, response schemas) is in
 [`docs/sunpump-api.md`](docs/sunpump-api.md) and
