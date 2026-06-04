@@ -45,6 +45,7 @@
 - **Read anything** — token prices, pools, farms, positions, transaction history, and protocol metrics
 - **Quote and route** — best-route quotes across SUNSwap V1/V2/V3/V4
 - **Execute on-chain** — swaps, liquidity management (V2/V3/V4), and arbitrary contract writes
+- **Meme tokens** — SunPump discovery, one-command token launching, and bonding-curve trading
 - **Automate** — JSON output, field filters, `--dry-run`, and `--yes` for non-interactive use
 - **Read-only out of the box** — no wallet required for queries and quotes
 
@@ -357,9 +358,10 @@ sun contract send <contractAddress> transfer  --args '["TRecipient","1000000"]' 
 ### SunPump
 
 Access to SunPump — read-only API for discovery (token launches, trending lists,
-holder portfolios) plus on-chain trade commands
-(`buy`/`sell`/`quote-buy`/`quote-sell`/`state`) that talk to the bonding-curve
-contract through `sun-kit`. Read-only API calls need no wallet; trade commands do.
+holder portfolios), token creation via the agent endpoint (`launch`), and
+on-chain trade commands (`buy`/`sell`/`quote-buy`/`quote-sell`/`state`) that talk
+to the bonding-curve contract through `sun-kit`. Read-only API calls and `launch`
+need no wallet; trade commands do.
 
 - Mainnet (default): `https://api-v2.sunpump.meme/pump-api`
 - Nile testnet: `https://tn-api.sunpump.meme/pump-api` — use the global `--network nile` flag
