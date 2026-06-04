@@ -4,6 +4,22 @@ All notable changes to `@bankofai/sun-cli` are documented in this file. Format
 loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `sun sunpump launch` — create a token through the SunPump agent endpoint
+  (`POST /ai/agentTokenLaunch`). Server-side creation: the platform signs and
+  broadcasts the creation transaction, so no local wallet is needed. Required
+  `--name`/`--symbol`; optional `--description`, `--image <path>` (read and
+  sent as base64) or `--image-base64`, social URLs, `--tweet-username`.
+  Prints a summary and asks for confirmation (`--yes` skips); honours
+  `--dry-run`. On success prints the new token's contract address, creation
+  tx hash and logo URL.
+- Nile testnet support is back for all `sunpump` commands (the
+  `tn-api.sunpump.meme` host is publicly reachable again) — switch with the
+  global `--network nile` flag. Reverts the 1.2.0 mainnet-only restriction.
+
 ## [1.2.0] — 2026-05-22
 
 End-to-end SunPump support: read-only discovery for the SunPump meme-token
