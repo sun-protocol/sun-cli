@@ -1,5 +1,6 @@
 import { Command } from 'commander'
-import { parseApiResponse, writeAction } from '../lib/command'
+import { isDryRun, parseApiResponse, writeAction } from '../lib/command'
+import { confirm, printSummary } from '../lib/confirm'
 import { getNetwork, getKit } from '../lib/context'
 import {
   output,
@@ -594,6 +595,99 @@ export function registerSunpumpCommands(program: Command) {
       })
     })
 
+
+  // -------------------------- launch (agent token launch) ------------------
+  sp.command('launch')
+    .description(
+      'Launch a new token via the SunPump agent endpoint (server-side creation, no wallet needed)',
+    )
+    .requiredOption('--name <name>', 'Token name')
+    .requiredOption('--symbol <symbol>', 'Token symbol')
+    .option('--description <text>', 'Token description')
+    .option('--image <path>', 'Logo image file (read and sent as base64)')
+    .option('--image-base64 <data>', 'Logo image as a raw base64 string (overrides --image)')
+    .option('--twitter-url <url>', 'Twitter URL')
+    .option('--telegram-url <url>', 'Telegram URL')
+    .option('--website-url <url>', 'Website URL')
+    .option('--tweet-username <name>', 'Tweet username to associate with the launch')
+    .action(async (opts) => {
+      let imageBase64: string | undefined = opts.imageBase64
+      let imageLabel = imageBase64 ? `base64 (${imageBase64.length} chars)` : undefined
+      if (!imageBase64 && opts.image) {
+        try {
+          const { readFile } = await import('fs/promises')
+          const buf = await readFile(opts.image)
+          imageBase64 = buf.toString('base64')
+          imageLabel = `${opts.image} (${buf.length} bytes)`
+        } catch (err: any) {
+          outputError('Failed to read --image file', err)
+          return
+        }
+      }
+
+      const params = {
+        name: opts.name,
+        symbol: opts.symbol,
+        description: opts.description ?? '',
+        imageBase64,
+        twitterUrl: opts.twitterUrl ?? '',
+        telegramUrl: opts.telegramUrl ?? '',
+        websiteUrl: opts.websiteUrl ?? '',
+        tweetUsername: opts.tweetUsername ?? '',
+      }
+
+      if (isDryRun()) {
+        output({
+          dryRun: true,
+          action: 'SunPump Agent Token Launch',
+          params: { ...params, imageBase64: imageLabel },
+        })
+        return
+      }
+
+      printSummary('SunPump Agent Token Launch', {
+        Name: params.name,
+        Symbol: params.symbol,
+        Description: params.description,
+        Image: imageLabel,
+        Twitter: params.twitterUrl,
+        Telegram: params.telegramUrl,
+        Website: params.websiteUrl,
+        'Tweet User': params.tweetUsername,
+        Network: currentNetwork,
+      })
+      const confirmed = await confirm('Launch this token?')
+      if (!confirmed) {
+        if (!isJsonMode()) console.log('Cancelled.')
+        return
+      }
+
+      try {
+        const client = getSunPump(currentNetwork)
+        const raw = await withSpinner('Launching token...', () => client.agentTokenLaunch(params))
+        const { data } = parseApiResponse<any>(raw)
+        if (isJsonMode()) {
+          output(data)
+          return
+        }
+        // Unlike the GET endpoints (plain epoch seconds), the launch endpoint
+        // serializes *Instant fields as epoch-millis / 1e6 (e.g. 1780476.327).
+        // Normalize to epoch seconds so tokenDetail/formatTime render correctly.
+        for (const k of ['tokenCreatedInstant', 'tokenLaunchedInstant', 'firstReachHillInstant']) {
+          const v = Number(data?.[k])
+          if (Number.isFinite(v) && v > 0 && v < 1e8) data[k] = v * 1000
+        }
+        const pairs = tokenDetail(data) ?? {}
+        if (data?.createTxHash) pairs['Create Tx'] = data.createTxHash
+        if (data?.logoUrl) pairs['Logo'] = data.logoUrl
+        const chalk = (await import('chalk')).default
+        console.log()
+        console.log(chalk.green('Token launched'))
+        printKeyValue(pairs)
+      } catch (err: any) {
+        outputError('Launch failed', err)
+      }
+    })
 
   // -------------------------- trade (buy/sell/quote/state) -----------------
   sp.command('state <tokenAddress>')

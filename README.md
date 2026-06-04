@@ -378,6 +378,19 @@ sun sunpump tx user <walletAddress> --size 20      # swap history for a wallet
 sun sunpump portfolio <walletAddress> --include-zero
 ```
 
+Launch a new token through the SunPump agent endpoint (server-side creation —
+no wallet needed; asks for confirmation, `--yes` to skip, `--dry-run` to preview):
+
+```bash
+sun sunpump launch --name MyToken --symbol MTK \
+  --description "my meme token" --image ./logo.png \
+  --twitter-url https://x.com/mytoken --website-url https://mytoken.xyz
+```
+
+`--image <path>` reads a local file and sends it as base64; pass `--image-base64`
+to supply the encoded string directly. On success the CLI prints the new token's
+contract address and creation tx hash.
+
 Trade on the bonding curve (requires a wallet; pre-launch tokens only — once a token
 migrates to SunSwap, use `sun swap` instead):
 
