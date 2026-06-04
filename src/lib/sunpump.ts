@@ -32,7 +32,7 @@ export type Query = Record<string, QueryValue>
 export interface AgentTokenLaunchParams {
   name: string
   symbol: string
-  description?: string
+  description: string
   /** Logo image content as a base64 string (no data-URI prefix). */
   imageBase64?: string
   twitterUrl?: string

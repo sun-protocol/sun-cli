@@ -11,7 +11,7 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `sun sunpump launch` — create a token through the SunPump agent endpoint
   (`POST /ai/agentTokenLaunch`). Server-side creation: the platform signs and
   broadcasts the creation transaction, so no local wallet is needed. Required
-  `--name`/`--symbol`; optional `--description`, `--image <path>` (read and
+  `--name`/`--symbol`/`--description`; optional `--image <path>` (read and
   sent as base64) or `--image-base64`, social URLs, `--tweet-username`.
   Prints a summary and asks for confirmation (`--yes` skips); honours
   `--dry-run`. On success prints the new token's contract address, creation

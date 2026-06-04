@@ -603,7 +603,7 @@ export function registerSunpumpCommands(program: Command) {
     )
     .requiredOption('--name <name>', 'Token name')
     .requiredOption('--symbol <symbol>', 'Token symbol')
-    .option('--description <text>', 'Token description')
+    .requiredOption('--description <text>', 'Token description')
     .option('--image <path>', 'Logo image file (read and sent as base64)')
     .option('--image-base64 <data>', 'Logo image as a raw base64 string (overrides --image)')
     .option('--twitter-url <url>', 'Twitter URL')
@@ -628,7 +628,7 @@ export function registerSunpumpCommands(program: Command) {
       const params = {
         name: opts.name,
         symbol: opts.symbol,
-        description: opts.description ?? '',
+        description: opts.description,
         imageBase64,
         twitterUrl: opts.twitterUrl ?? '',
         telegramUrl: opts.telegramUrl ?? '',
