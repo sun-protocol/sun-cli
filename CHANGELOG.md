@@ -15,10 +15,7 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   sent as base64) or `--image-base64`, social URLs, `--tweet-username`.
   Prints a summary and asks for confirmation (`--yes` skips); honours
   `--dry-run`. On success prints the new token's contract address, creation
-  tx hash and logo URL.
-- Nile testnet support is back for all `sunpump` commands (the
-  `tn-api.sunpump.meme` host is publicly reachable again) — switch with the
-  global `--network nile` flag. Reverts the 1.2.0 mainnet-only restriction.
+  tx hash and logo URL. Mainnet only.
 
 ## [1.2.0] — 2026-05-22
 

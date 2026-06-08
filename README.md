@@ -363,8 +363,9 @@ on-chain trade commands (`buy`/`sell`/`quote-buy`/`quote-sell`/`state`) that tal
 to the bonding-curve contract through `sun-kit`. Read-only API calls and `launch`
 need no wallet; trade commands do.
 
-- Mainnet (default): `https://api-v2.sunpump.meme/pump-api`
-- Nile testnet: `https://tn-api.sunpump.meme/pump-api` — use the global `--network nile` flag
+SunPump is **mainnet only** — both the API host (`https://api-v2.sunpump.meme/pump-api`)
+and the on-chain bonding-curve contract. Passing `--network nile` (or any non-mainnet
+value) to a `sunpump` subcommand will fail fast.
 
 ```bash
 sun sunpump token king-of-hill                     # current king-of-the-hill token
@@ -414,9 +415,8 @@ move fast); pass `--slippage 0.005` for 0.5% or `--min-out <raw>` for an exact f
 base units.
 
 Endpoints requiring a signed message (`favors`) accept `--user-address`,
-`--signature`, `--signed-message` flags. Switch to nile testnet with
-`sun --network nile sunpump ...`, or override the base URL with `SUNPUMP_API_BASE_URL`
-for a custom host.
+`--signature`, `--signed-message` flags. Override the base URL with
+`SUNPUMP_API_BASE_URL` only when you have a custom mainnet-compatible host.
 
 
 ---
