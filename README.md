@@ -45,6 +45,7 @@
 - **Read anything** — token prices, pools, farms, positions, transaction history, and protocol metrics
 - **Quote and route** — best-route quotes across SUNSwap V1/V2/V3/V4
 - **Execute on-chain** — swaps, liquidity management (V2/V3/V4), and arbitrary contract writes
+- **Meme tokens** — SunPump discovery, one-command token launching, and bonding-curve trading
 - **Automate** — JSON output, field filters, `--dry-run`, and `--yes` for non-interactive use
 - **Read-only out of the box** — no wallet required for queries and quotes
 
@@ -357,9 +358,10 @@ sun contract send <contractAddress> transfer  --args '["TRecipient","1000000"]' 
 ### SunPump
 
 Access to SunPump — read-only API for discovery (token launches, trending lists,
-holder portfolios) plus on-chain trade commands
-(`buy`/`sell`/`quote-buy`/`quote-sell`/`state`) that talk to the bonding-curve
-contract through `sun-kit`. Read-only API calls need no wallet; trade commands do.
+holder portfolios), token creation via the agent endpoint (`launch`), and
+on-chain trade commands (`buy`/`sell`/`quote-buy`/`quote-sell`/`state`) that talk
+to the bonding-curve contract through `sun-kit`. Read-only API calls and `launch`
+need no wallet; trade commands do.
 
 SunPump is **mainnet only** — both the API host (`https://api-v2.sunpump.meme/pump-api`)
 and the on-chain bonding-curve contract. Passing `--network nile` (or any non-mainnet
@@ -378,6 +380,19 @@ sun sunpump tx user <walletAddress> --size 20      # swap history for a wallet
 
 sun sunpump portfolio <walletAddress> --include-zero
 ```
+
+Launch a new token through the SunPump agent endpoint (server-side creation —
+no wallet needed; asks for confirmation, `--yes` to skip, `--dry-run` to preview):
+
+```bash
+sun sunpump launch --name MyToken --symbol MTK \
+  --description "my meme token" --image ./logo.png \
+  --twitter-url https://x.com/mytoken --website-url https://mytoken.xyz
+```
+
+`--image <path>` reads a local file and sends it as base64; pass `--image-base64`
+to supply the encoded string directly. On success the CLI prints the new token's
+contract address and creation tx hash.
 
 Trade on the bonding curve (requires a wallet; pre-launch tokens only — once a token
 migrates to SunSwap, use `sun swap` instead):

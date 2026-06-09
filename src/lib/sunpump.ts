@@ -19,6 +19,18 @@ export interface SunPumpClientOptions {
 type QueryValue = string | number | boolean | null | undefined
 export type Query = Record<string, QueryValue>
 
+export interface AgentTokenLaunchParams {
+  name: string
+  symbol: string
+  description: string
+  /** Logo image content as a base64 string (no data-URI prefix). */
+  imageBase64?: string
+  twitterUrl?: string
+  telegramUrl?: string
+  websiteUrl?: string
+  tweetUsername?: string
+}
+
 export class SunPumpHttpError extends Error {
   readonly code = 'SUNPUMP_HTTP_ERROR'
   constructor(
@@ -53,11 +65,23 @@ export class SunPump {
   }
 
   async request<T = unknown>(path: string, query?: Query): Promise<T> {
-    const url = `${this.baseUrl}${path}${buildQueryString(query)}`
-    const res = await this.fetchImpl(url, {
+    return this.send<T>(path, buildQueryString(query), {
       method: 'GET',
       headers: { Accept: 'application/json' },
     })
+  }
+
+  async post<T = unknown>(path: string, body: unknown): Promise<T> {
+    return this.send<T>(path, '', {
+      method: 'POST',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  }
+
+  private async send<T>(path: string, queryString: string, init: RequestInit): Promise<T> {
+    const url = `${this.baseUrl}${path}${queryString}`
+    const res = await this.fetchImpl(url, init)
     const text = await res.text()
     if (!res.ok) {
       const excerpt = text.length > 500 ? text.slice(0, 500) + '…' : text
@@ -215,6 +239,19 @@ export class SunPump {
     } = {},
   ) {
     return this.request(`/transactions/holder/${encodeURIComponent(ownerAddress)}`, query)
+  }
+
+  // ---------------------------------------------------------------------------
+  // AI agent — token launch
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Launch a new token through the SunPump agent endpoint. The server creates
+   * the token on-chain itself — no local wallet or signing involved. Returns
+   * the full token object (contractAddress, createTxHash, …) in the envelope.
+   */
+  agentTokenLaunch(params: AgentTokenLaunchParams) {
+    return this.post('/ai/agentTokenLaunch', params)
   }
 
   // ---------------------------------------------------------------------------
