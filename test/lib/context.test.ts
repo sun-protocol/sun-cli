@@ -26,7 +26,7 @@ describe('context', () => {
       isWalletConfigured,
     }))
 
-    jest.doMock('@bankofai/sun-kit', () => ({
+    jest.doMock('@sun-protocol/sun-kit', () => ({
       SunAPI,
       SunKit,
     }))

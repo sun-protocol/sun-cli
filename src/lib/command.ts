@@ -2,7 +2,7 @@
  * Command helpers — eliminate boilerplate in write/read command handlers.
  */
 
-import type { SunKit, SunAPI } from '@bankofai/sun-kit'
+import type { SunKit, SunAPI } from '@sun-protocol/sun-kit'
 import { getKit, getApi, ensureWallet } from './context'
 import {
   output,

@@ -132,7 +132,9 @@ const holderTable = {
     return [
       h.holderAddress ?? h.address ?? h.userAddress ?? '-',
       h.holderType ?? '-',
-      h.decimals ? formatAmount(h.amount ?? h.balance, h.decimals) : fmtNum(h.balance ?? h.amount, 2),
+      h.decimals
+        ? formatAmount(h.amount ?? h.balance, h.decimals)
+        : fmtNum(h.balance ?? h.amount, 2),
       pct,
     ]
   },
@@ -601,7 +603,6 @@ export function registerSunpumpCommands(program: Command) {
       })
     })
 
-
   // -------------------------- launch (agent token launch) ------------------
   sp.command('launch')
     .description(
@@ -702,9 +703,7 @@ export function registerSunpumpCommands(program: Command) {
 
   // -------------------------- trade (buy/sell/quote/state) -----------------
   sp.command('state <tokenAddress>')
-    .description(
-      'Show SunPump token state (0 NOT_EXIST, 1 TRADING, 2 READY_TO_LAUNCH, 3 LAUNCHED)',
-    )
+    .description('Show SunPump token state (0 NOT_EXIST, 1 TRADING, 2 READY_TO_LAUNCH, 3 LAUNCHED)')
     .action(async (tokenAddress: string) => {
       try {
         const network = getNetwork()
@@ -941,5 +940,4 @@ export function registerSunpumpCommands(program: Command) {
         },
       })
     })
-
 }
