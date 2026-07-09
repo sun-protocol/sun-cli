@@ -1,6 +1,6 @@
 {
   "name": "@sun-protocol/sun-cli",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "CLI tool for SUN.IO / SUNSWAP on TRON — for humans and AI agents",
   "main": "dist/bin.js",
   "type": "commonjs",
