@@ -42,7 +42,7 @@
   },
   "dependencies": {
     "@bankofai/agent-wallet": "^2.3.0",
-    "@sun-protocol/sun-kit": "^1.1.0",
+    "@sun-protocol/sun-kit": "^1.2.0",
     "@scure/bip32": "^2.0.1",
     "@scure/bip39": "^2.0.1",
     "chalk": "^4.1.2",
