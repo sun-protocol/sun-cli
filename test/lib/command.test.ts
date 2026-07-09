@@ -141,6 +141,34 @@ describe('command helpers', () => {
       Tronscan: 'https://nile.tronscan.org/#/transaction/tx1',
     })
   })
+
+  it('does not require a wallet for dry-run write actions', async () => {
+    const { commandModule, ensureWallet, getKit, output, confirm, withSpinner } =
+      loadCommandModule()
+    const execute = jest.fn()
+
+    commandModule.setDryRun(true)
+
+    await commandModule.writeAction({
+      title: 'Swap Preview',
+      summary: { Network: 'mainnet', Amount: '1000000' },
+      confirmMsg: 'Execute?',
+      spinnerLabel: 'Executing...',
+      errorLabel: 'Swap failed',
+      execute,
+    })
+
+    expect(output).toHaveBeenCalledWith({
+      dryRun: true,
+      action: 'Swap Preview',
+      params: { Network: 'mainnet', Amount: '1000000' },
+    })
+    expect(ensureWallet).not.toHaveBeenCalled()
+    expect(getKit).not.toHaveBeenCalled()
+    expect(confirm).not.toHaveBeenCalled()
+    expect(withSpinner).not.toHaveBeenCalled()
+    expect(execute).not.toHaveBeenCalled()
+  })
 })
 
 describe('parseApiResponse', () => {
