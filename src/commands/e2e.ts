@@ -1,5 +1,6 @@
 import { spawn } from 'child_process'
 import { Command } from 'commander'
+import { SUNSWAP_V2_NILE_ROUTER } from '@sun-protocol/sun-kit'
 import { output } from '../lib/output'
 
 interface E2EStep {
@@ -91,7 +92,7 @@ function nileSteps(write: boolean): E2EStep[] {
   const owner = process.env.SUN_E2E_OWNER || ''
   const tokenId = process.env.SUN_E2E_TOKEN_ID || '1'
   const liquidity = process.env.SUN_E2E_LIQUIDITY || '1'
-  const router = process.env.SUN_E2E_ROUTER || 'TVFu77XsSvHu4voLPg3U4UYZbStX5GFJcD'
+  const router = process.env.SUN_E2E_ROUTER || SUNSWAP_V2_NILE_ROUTER
   const pm = process.env.SUN_E2E_V3_PM || 'TJRabPrwbZy45sbavfcjinPJC18kjpRTv8'
   const spender = process.env.SUN_E2E_SPENDER || router
   const swapIn = process.env.SUN_E2E_SWAP_IN || 'TRX'
