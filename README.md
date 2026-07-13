@@ -448,9 +448,15 @@ funded Nile test wallet and keep amounts tiny. Optional environment variables:
 | `SUN_E2E_SPENDER`     | Spender used by `token approve`              | router  |
 | `SUN_E2E_TOKEN_ID`    | Position token id for position dry-runs      | `1`     |
 | `SUN_E2E_LIQUIDITY`   | Liquidity amount for remove/decrease checks  | `1`     |
-| `SUN_E2E_SWAP_AMOUNT` | TRX amount in Sun for write swap             | `1`     |
+| `SUN_E2E_SWAP_IN`     | Token in for write swap                      | `TRX`   |
+| `SUN_E2E_SWAP_OUT`    | Token out for write swap                     | `SUN`   |
+| `SUN_E2E_SWAP_AMOUNT` | Raw token-in amount for write swap           | `1000000` |
+| `SUN_E2E_V2_TOKEN_A`  | Token A for V2 liquidity checks              | `TRX`   |
+| `SUN_E2E_V2_TOKEN_B`  | Token B for V2 liquidity checks              | `SUN`   |
 | `SUN_E2E_V2_AMOUNT_A` | Token A amount for write V2 add liquidity    | `1`     |
 | `SUN_E2E_V2_AMOUNT_B` | Token B amount for write V2 add liquidity    | `1`     |
+| `SUN_E2E_CL_TOKEN0`   | Token0 for V3/V4 concentrated liquidity dry-runs | `USDD` |
+| `SUN_E2E_CL_TOKEN1`   | Token1 for V3/V4 concentrated liquidity dry-runs | `USDT` |
 
 ---
 

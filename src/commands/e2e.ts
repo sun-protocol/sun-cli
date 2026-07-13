@@ -88,13 +88,18 @@ function isDryRunStep(step: E2EStep): boolean {
 
 function nileSteps(write: boolean): E2EStep[] {
   const nileUsdt = 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf'
-  const nileWtrx = 'TXWkP3jLBqRGojUih1ShzNyDaN5Csnebok'
   const owner = process.env.SUN_E2E_OWNER || ''
   const tokenId = process.env.SUN_E2E_TOKEN_ID || '1'
   const liquidity = process.env.SUN_E2E_LIQUIDITY || '1'
   const router = process.env.SUN_E2E_ROUTER || 'TVFu77XsSvHu4voLPg3U4UYZbStX5GFJcD'
   const pm = process.env.SUN_E2E_V3_PM || 'TJRabPrwbZy45sbavfcjinPJC18kjpRTv8'
   const spender = process.env.SUN_E2E_SPENDER || router
+  const swapIn = process.env.SUN_E2E_SWAP_IN || 'TRX'
+  const swapOut = process.env.SUN_E2E_SWAP_OUT || 'SUN'
+  const v2TokenA = process.env.SUN_E2E_V2_TOKEN_A || 'TRX'
+  const v2TokenB = process.env.SUN_E2E_V2_TOKEN_B || 'SUN'
+  const clToken0 = process.env.SUN_E2E_CL_TOKEN0 || 'USDD'
+  const clToken1 = process.env.SUN_E2E_CL_TOKEN1 || 'USDT'
 
   const readAndDryRun: E2EStep[] = [
     { name: 'wallet address', args: ['wallet', 'address'], requiresWallet: true },
@@ -108,6 +113,7 @@ function nileSteps(write: boolean): E2EStep[] {
     { name: 'token search', args: ['token', 'search', 'USDT', '--page-size', '1'] },
     { name: 'pool list', args: ['pool', 'list', '--token', 'USDT', '--page-size', '1'] },
     { name: 'pool search', args: ['pool', 'search', 'TRX USDT', '--page-size', '1'] },
+    { name: 'pool search usdd usdt', args: ['pool', 'search', 'USDD USDT', '--page-size', '5'] },
     { name: 'pool top apy', args: ['pool', 'top-apy', '--page-size', '1'] },
     { name: 'pool hooks', args: ['pool', 'hooks'] },
     { name: 'pair info', args: ['pair', 'info', '--token', nileUsdt, '--page-size', '1'] },
@@ -116,6 +122,7 @@ function nileSteps(write: boolean): E2EStep[] {
     { name: 'protocol info', args: ['protocol', 'info'] },
     { name: 'position list', args: ['position', 'list', '--page-size', '1'] },
     { name: 'swap quote', args: ['swap:quote', 'TRX', 'USDT', '1000000'] },
+    { name: 'swap quote sun trx', args: ['swap:quote', 'TRX', 'SUN', '1000000'] },
     {
       name: 'contract read',
       args: ['contract', 'read', nileUsdt, 'decimals', '--args', '[]'],
@@ -138,7 +145,7 @@ function nileSteps(write: boolean): E2EStep[] {
     },
     {
       name: 'swap dry-run',
-      args: ['--dry-run', 'swap', 'TRX', 'USDT', '1000000'],
+      args: ['--dry-run', 'swap', swapIn, swapOut, '1000000'],
       requiresWallet: true,
       write: true,
     },
@@ -149,9 +156,9 @@ function nileSteps(write: boolean): E2EStep[] {
         'liquidity',
         'v2:add',
         '--token-a',
-        'TRX',
+        v2TokenA,
         '--token-b',
-        'USDT',
+        v2TokenB,
         '--amount-a',
         '1',
         '--amount-b',
@@ -167,9 +174,9 @@ function nileSteps(write: boolean): E2EStep[] {
         'liquidity',
         'v2:remove',
         '--token-a',
-        'TRX',
+        v2TokenA,
         '--token-b',
-        'USDT',
+        v2TokenB,
         '--liquidity',
         liquidity,
       ],
@@ -183,9 +190,9 @@ function nileSteps(write: boolean): E2EStep[] {
         'liquidity',
         'v3:mint',
         '--token0',
-        'TRX',
+        clToken0,
         '--token1',
-        'USDT',
+        clToken1,
         '--amount0',
         '1',
       ],
@@ -225,9 +232,9 @@ function nileSteps(write: boolean): E2EStep[] {
         'liquidity',
         'v4:mint',
         '--token0',
-        'TRX',
+        clToken0,
         '--token1',
-        'USDT',
+        clToken1,
         '--amount0',
         '1',
       ],
@@ -243,9 +250,9 @@ function nileSteps(write: boolean): E2EStep[] {
         '--token-id',
         tokenId,
         '--token0',
-        'TRX',
+        clToken0,
         '--token1',
-        'USDT',
+        clToken1,
         '--amount0',
         '1',
       ],
@@ -263,9 +270,9 @@ function nileSteps(write: boolean): E2EStep[] {
         '--liquidity',
         liquidity,
         '--token0',
-        'TRX',
+        clToken0,
         '--token1',
-        'USDT',
+        clToken1,
       ],
       requiresWallet: true,
       write: true,
@@ -310,7 +317,7 @@ function nileSteps(write: boolean): E2EStep[] {
     },
     {
       name: 'swap write',
-      args: ['--yes', 'swap', 'TRX', 'USDT', process.env.SUN_E2E_SWAP_AMOUNT || '1'],
+      args: ['--yes', 'swap', swapIn, swapOut, process.env.SUN_E2E_SWAP_AMOUNT || '1000000'],
       requiresWallet: true,
       write: true,
     },
@@ -321,9 +328,9 @@ function nileSteps(write: boolean): E2EStep[] {
         'liquidity',
         'v2:add',
         '--token-a',
-        nileWtrx,
+        v2TokenA,
         '--token-b',
-        nileUsdt,
+        v2TokenB,
         '--amount-a',
         process.env.SUN_E2E_V2_AMOUNT_A || '1',
         '--amount-b',

@@ -32,6 +32,7 @@ const NILE_TOKENS: Record<string, TokenInfo> = {
   TRX: { symbol: 'TRX', address: TRX_ADDRESS, decimals: 6 },
   WTRX: { symbol: 'WTRX', address: WTRX_NILE, decimals: 6 },
   USDT: { symbol: 'USDT', address: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf', decimals: 6 },
+  USDD: { symbol: 'USDD', address: 'TXDk8mbtRbXeYuMNS83CfKPaYYT8XWv9Hz', decimals: 18 },
   USDC: { symbol: 'USDC', address: 'TWMCMCoJPqCGw5RR7eChF2HoY3a9B8eYA3', decimals: 6 },
   SUN: { symbol: 'SUN', address: 'TWrZRHY9aKQZcyjpovdH6qeCEyYZrRQDZt', decimals: 18 },
   USDJ: { symbol: 'USDJ', address: 'TLBaRhANQoJFTqre9Nf1mjuwNWjCJeYqUL', decimals: 18 },
