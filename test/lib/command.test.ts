@@ -76,6 +76,29 @@ describe('command helpers', () => {
     })
   })
 
+  it('does not require a wallet for dry-run write actions', async () => {
+    const { commandModule, ensureWallet, getKit, output } = loadCommandModule()
+    commandModule.setDryRun(true)
+
+    await commandModule.writeAction({
+      title: 'Contract Transaction',
+      summary: { Network: 'nile', Contract: 'TContract' },
+      confirmMsg: 'Execute?',
+      spinnerLabel: 'Executing...',
+      errorLabel: 'Send failed',
+      execute: async () => ({ txid: 'should-not-run' }),
+    })
+
+    expect(ensureWallet).not.toHaveBeenCalled()
+    expect(getKit).not.toHaveBeenCalled()
+    expect(output).toHaveBeenCalledWith({
+      dryRun: true,
+      action: 'Contract Transaction',
+      params: { Network: 'nile', Contract: 'TContract' },
+    })
+    commandModule.setDryRun(false)
+  })
+
   it('uses the result network when present for explorer links', async () => {
     const { commandModule, output } = loadCommandModule()
 

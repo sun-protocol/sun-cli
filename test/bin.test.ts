@@ -53,6 +53,8 @@ describe('bin root wallet flags', () => {
       jest.doMock('../src/commands/farm', () => ({ registerFarmCommands: noop }))
       jest.doMock('../src/commands/liquidity', () => ({ registerLiquidityCommands: noop }))
       jest.doMock('../src/commands/contract', () => ({ registerContractCommands: noop }))
+      jest.doMock('../src/commands/sunpump', () => ({ registerSunpumpCommands: noop }))
+      jest.doMock('../src/commands/e2e', () => ({ registerE2ECommands: noop }))
 
       require('../src/bin')
     })

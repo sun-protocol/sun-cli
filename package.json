@@ -13,6 +13,8 @@
     "start": "node dist/bin.js",
     "clean": "rm -rf dist",
     "test": "jest",
+    "test:e2e:nile": "ts-node src/bin.ts e2e nile",
+    "test:e2e:nile:write": "ts-node src/bin.ts e2e nile --write",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",

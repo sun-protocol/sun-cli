@@ -18,6 +18,7 @@ import { registerFarmCommands } from './commands/farm'
 import { registerLiquidityCommands } from './commands/liquidity'
 import { registerContractCommands } from './commands/contract'
 import { registerSunpumpCommands } from './commands/sunpump'
+import { registerE2ECommands } from './commands/e2e'
 
 const { version } = require('../package.json') as { version: string }
 
@@ -81,6 +82,7 @@ registerFarmCommands(program)
 registerLiquidityCommands(program)
 registerContractCommands(program)
 registerSunpumpCommands(program)
+registerE2ECommands(program)
 
 program.parseAsync(process.argv).catch((err) => {
   process.stderr.write(`${err.message}\n`)

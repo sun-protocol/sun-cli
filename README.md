@@ -30,6 +30,7 @@
   - [Protocol & History](#protocol--history)
   - [Generic Contract](#generic-contract)
   - [SunPump](#sunpump)
+  - [Nile E2E Self-Test](#nile-e2e-self-test)
 - [Global Flags](#global-flags)
 - [Output Formats](#output-formats)
 - [Built-In Token Symbols](#built-in-token-symbols)
@@ -175,7 +176,7 @@ Tab completion is **not bundled**. The two snippets below give you top-level com
 ```zsh
 _sun_cmds() {
   compadd -- wallet price swap swap:quote swap:quote-raw swap:exact-input \
-    token pool protocol tx position pair farm liquidity contract help
+    token pool protocol tx position pair farm liquidity contract sunpump e2e help
 }
 compdef _sun_cmds sun
 ```
@@ -187,7 +188,7 @@ _sun_cmds() {
   local cur="${COMP_WORDS[COMP_CWORD]}"
   COMPREPLY=( $(compgen -W "wallet price swap swap:quote swap:quote-raw \
     swap:exact-input token pool protocol tx position pair farm liquidity \
-    contract help" -- "$cur") )
+    contract sunpump e2e help" -- "$cur") )
 }
 complete -F _sun_cmds sun
 ```
@@ -259,6 +260,7 @@ sun price --address TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
 ```bash
 sun token list --protocol V3
 sun token search USDT
+sun token approve --token USDT --spender <spenderAddress> --amount 1000000
 
 sun pool list --token TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t
 sun pool search "TRX USDT"
@@ -418,6 +420,37 @@ Endpoints requiring a signed message (`favors`) accept `--user-address`,
 `--signature`, `--signed-message` flags. Override the base URL with
 `SUNPUMP_API_BASE_URL` only when you have a custom mainnet-compatible host.
 
+### Nile E2E Self-Test
+
+Run CLI-level self-tests against Nile to verify `sun-cli` is wired to `sun-kit`
+core functions:
+
+```bash
+npm run test:e2e:nile
+# or
+sun e2e nile
+```
+
+By default this runs read-only checks, swap quote checks, contract reads, wallet
+queries when a wallet is configured, and dry-run coverage for write commands.
+It does not broadcast transactions.
+
+```bash
+sun e2e nile --write
+```
+
+`--write` adds real Nile transactions for the small configurable write set. Use a
+funded Nile test wallet and keep amounts tiny. Optional environment variables:
+
+| Variable              | Purpose                                      | Default |
+| --------------------- | -------------------------------------------- | ------- |
+| `SUN_E2E_OWNER`       | Owner address for owner-scoped checks        | wallet  |
+| `SUN_E2E_SPENDER`     | Spender used by `token approve`              | router  |
+| `SUN_E2E_TOKEN_ID`    | Position token id for position dry-runs      | `1`     |
+| `SUN_E2E_LIQUIDITY`   | Liquidity amount for remove/decrease checks  | `1`     |
+| `SUN_E2E_SWAP_AMOUNT` | TRX amount in Sun for write swap             | `1`     |
+| `SUN_E2E_V2_AMOUNT_A` | Token A amount for write V2 add liquidity    | `1`     |
+| `SUN_E2E_V2_AMOUNT_B` | Token B amount for write V2 add liquidity    | `1`     |
 
 ---
 
@@ -564,6 +597,7 @@ npm install
 npm run build
 npm test
 npm run lint
+npm run test:e2e:nile
 ```
 
 Run from source:
