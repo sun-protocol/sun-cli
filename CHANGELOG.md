@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `@bankofai/sun-cli` are documented in this file. Format
+All notable changes to `@sun-protocol/sun-cli` are documented in this file. Format
 loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
@@ -88,7 +88,7 @@ All write commands go through `writeAction`: wallet check → signed summary →
 
 ### Companion release
 
-[`sunpump-agent-skill`](https://github.com/BofAI/skills/tree/main/sunpump-agent-skill)
+[`sunpump-agent-skill`](https://github.com/sun-protocol/skills/tree/main/sunpump-agent-skill)
 **v1.2.0** ships in parallel — pins this CLI version, documents the new
 `buy/sell/quote-*/state` commands as the pre-launch trade path with `sun swap`
 as the post-launch path, and updates pre-validation checklists to enforce
@@ -97,6 +97,6 @@ as the post-launch path, and updates pre-validation checklists to enforce
 Install:
 
 ```bash
-npm install -g @bankofai/sun-cli@^1.2.0
-npx skills add BofAI/skills
+npm install -g @sun-protocol/sun-cli@^1.2.0
+npx skills add sun-protocol/skills
 ```

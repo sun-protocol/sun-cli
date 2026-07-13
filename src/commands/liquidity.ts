@@ -16,7 +16,7 @@ import {
   WTRX_MAINNET,
   WTRX_NILE,
   createReadonlyTronWeb,
-} from '@bankofai/sun-kit'
+} from '@sun-protocol/sun-kit'
 
 const V2_ROUTERS: Record<string, string> = {
   mainnet: SUNSWAP_V2_MAINNET_ROUTER,

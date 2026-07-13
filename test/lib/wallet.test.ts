@@ -60,7 +60,7 @@ describe('wallet', () => {
       resolveWalletProvider,
     }))
 
-    jest.doMock('@bankofai/sun-kit', () => ({
+    jest.doMock('@sun-protocol/sun-kit', () => ({
       createReadonlyTronWeb,
     }))
 

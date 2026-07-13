@@ -1,5 +1,5 @@
-import type { Wallet } from '@bankofai/sun-kit'
-import { createReadonlyTronWeb } from '@bankofai/sun-kit'
+import type { Wallet } from '@sun-protocol/sun-kit'
+import { createReadonlyTronWeb } from '@sun-protocol/sun-kit'
 import {
   resolveWalletProvider,
   type Wallet as BaseWallet,

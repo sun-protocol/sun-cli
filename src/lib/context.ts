@@ -2,7 +2,7 @@
  * Global application context — lazily initializes SunAPI, SunKit, and wallet.
  */
 
-import { SunAPI, SunKit } from '@bankofai/sun-kit'
+import { SunAPI, SunKit } from '@sun-protocol/sun-kit'
 import { initWallet, getWallet, isWalletConfigured } from './wallet'
 
 let _api: SunAPI | null = null

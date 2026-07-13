@@ -7,7 +7,7 @@
 
 > A CLI for AI-driven and human-operated DeFi workflows on TRON via the **SUN.IO / SUNSWAP** ecosystem.
 
-`@bankofai/sun-cli` connects your terminal, scripts, or AI agents to SUN.IO. Use it to **query** prices, pools, farms, and history; **quote** swap routes; and **execute** swaps, liquidity ops, and contract calls — all with machine-friendly output for automation.
+`@sun-protocol/sun-cli` connects your terminal, scripts, or AI agents to SUN.IO. Use it to **query** prices, pools, farms, and history; **quote** swap routes; and **execute** swaps, liquidity ops, and contract calls — all with machine-friendly output for automation.
 
 ---
 
@@ -54,7 +54,7 @@
 ## Installation
 
 ```bash
-npm install -g @bankofai/sun-cli
+npm install -g @sun-protocol/sun-cli
 ```
 
 Requires Node.js **20+**.

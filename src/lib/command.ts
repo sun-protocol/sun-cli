@@ -2,7 +2,7 @@
  * Command helpers — eliminate boilerplate in write/read command handlers.
  */
 
-import type { SunKit, SunAPI } from '@bankofai/sun-kit'
+import type { SunKit, SunAPI } from '@sun-protocol/sun-kit'
 import { getKit, getApi, ensureWallet } from './context'
 import {
   output,
@@ -188,15 +188,15 @@ export interface WriteActionOpts<T> {
 
 export async function writeAction<T>(opts: WriteActionOpts<T>): Promise<void> {
   try {
-    await ensureWallet()
-    const kit = await getKit()
-    const network =
-      typeof opts.summary.Network === 'string' ? String(opts.summary.Network) : undefined
-
     if (_dryRun) {
       output({ dryRun: true, action: opts.title, params: opts.summary })
       return
     }
+
+    await ensureWallet()
+    const kit = await getKit()
+    const network =
+      typeof opts.summary.Network === 'string' ? String(opts.summary.Network) : undefined
 
     printSummary(opts.title, opts.summary)
 
