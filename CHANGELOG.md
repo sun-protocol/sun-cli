@@ -68,16 +68,16 @@ All write commands go through `writeAction`: wallet check → signed summary →
 
 - **Trimmed API surface.** The following were intentionally removed (not core to trading/discovery):
 
-  | Removed | Reason |
-  |---|---|
-  | `sunpump home` (`stats` / `data` / `banners`) | Site-chrome data |
-  | `sunpump tx ticker` | Server hard-capped at ~15 rows |
-  | `sunpump kline` (`v1` / `v2` / `v3`) | Three near-identical OHLCV variants |
-  | `sunpump red-packet` (`get` / `remain` / `by-user` / `summary`) | Sun Agent campaign feature |
-  | `sunpump campaign` (`list` / `banners`) | Marketing banners |
-  | `sunpump referral` (`rewards` / `invites`) | Back-office reporting |
-  | `sunpump admin-summary` | Requires an admin password |
-  | `sunpump quota` | Third-platform integration, internal |
+  | Removed                                                         | Reason                               |
+  | --------------------------------------------------------------- | ------------------------------------ |
+  | `sunpump home` (`stats` / `data` / `banners`)                   | Site-chrome data                     |
+  | `sunpump tx ticker`                                             | Server hard-capped at ~15 rows       |
+  | `sunpump kline` (`v1` / `v2` / `v3`)                            | Three near-identical OHLCV variants  |
+  | `sunpump red-packet` (`get` / `remain` / `by-user` / `summary`) | Sun Agent campaign feature           |
+  | `sunpump campaign` (`list` / `banners`)                         | Marketing banners                    |
+  | `sunpump referral` (`rewards` / `invites`)                      | Back-office reporting                |
+  | `sunpump admin-summary`                                         | Requires an admin password           |
+  | `sunpump quota`                                                 | Third-platform integration, internal |
 
 ### Notes & gotchas
 
