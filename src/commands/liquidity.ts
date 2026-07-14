@@ -3,54 +3,76 @@ import { getNetwork } from '../lib/context'
 import { writeAction, readAction } from '../lib/command'
 import { withSpinner } from '../lib/output'
 import { resolveTokenAddress, getSymbolOrAddress } from '../lib/tokens'
-import {
-  SUNSWAP_V2_MAINNET_ROUTER,
-  SUNSWAP_V2_NILE_ROUTER,
-  SUNSWAP_V2_MAINNET_FACTORY,
-  SUNSWAP_V2_NILE_FACTORY,
-  SUNSWAP_V2_FACTORY_MIN_ABI,
-  SUNSWAP_V2_PAIR_MIN_ABI,
-  SUNSWAP_V3_MAINNET_POSITION_MANAGER,
-  SUNSWAP_V3_NILE_POSITION_MANAGER,
-  TRX_ADDRESS,
-  WTRX_MAINNET,
-  WTRX_NILE,
-  createReadonlyTronWeb,
-} from '@sun-protocol/sun-kit'
+import { getContractAddress } from '@sun-sdk/chains'
+import type { Network } from '@sun-sdk/core'
+import { TRX_ADDRESS, WTRX_MAINNET, WTRX_NILE } from '../lib/sdk/constants'
+import { createReadonlyTronWeb } from '../lib/sdk/factory'
+import { toCliTxResult } from '../lib/sdk/compat'
 
-const V2_ROUTERS: Record<string, string> = {
-  mainnet: SUNSWAP_V2_MAINNET_ROUTER,
-  nile: SUNSWAP_V2_NILE_ROUTER,
-}
+const SUNSWAP_V2_FACTORY_MIN_ABI = [
+  {
+    constant: true,
+    inputs: [
+      { name: 'tokenA', type: 'address' },
+      { name: 'tokenB', type: 'address' },
+    ],
+    name: 'getPair',
+    outputs: [{ name: 'pair', type: 'address' }],
+    type: 'function',
+  },
+]
 
-const V2_FACTORIES: Record<string, string> = {
-  mainnet: SUNSWAP_V2_MAINNET_FACTORY,
-  nile: SUNSWAP_V2_NILE_FACTORY,
-}
+const SUNSWAP_V2_PAIR_MIN_ABI = [
+  {
+    constant: true,
+    inputs: [],
+    name: 'getReserves',
+    outputs: [
+      { name: '_reserve0', type: 'uint112' },
+      { name: '_reserve1', type: 'uint112' },
+      { name: '_blockTimestampLast', type: 'uint32' },
+    ],
+    type: 'function',
+  },
+  {
+    constant: true,
+    inputs: [],
+    name: 'token0',
+    outputs: [{ name: '', type: 'address' }],
+    type: 'function',
+  },
+]
 
-const V3_POSITION_MANAGERS: Record<string, string> = {
-  mainnet: SUNSWAP_V3_MAINNET_POSITION_MANAGER,
-  nile: SUNSWAP_V3_NILE_POSITION_MANAGER,
+function assertSdkNetwork(network: string): Network {
+  if (network === 'mainnet' || network === 'nile') return network
+  throw new Error(`Unsupported SDK network: ${network}`)
 }
 
 function getV2Router(network: string, override?: string): string {
   if (override) return override
-  const router = V2_ROUTERS[network]
-  if (!router) {
-    throw new Error(`V2 router not configured for network: ${network}. Use --router to specify.`)
-  }
-  return router
+  return getContractAddress(assertSdkNetwork(network), 'sunswapV2Router')
 }
 
 function getV3PositionManager(network: string, override?: string): string {
   if (override) return override
-  const pm = V3_POSITION_MANAGERS[network]
-  if (!pm) {
-    throw new Error(
-      `V3 position manager not configured for network: ${network}. Use --pm to specify.`,
-    )
-  }
-  return pm
+  return getContractAddress(assertSdkNetwork(network), 'sunswapV3PositionManager')
+}
+
+function getV2Factory(network: string): string {
+  return getContractAddress(assertSdkNetwork(network), 'sunswapV2Factory')
+}
+
+function percentFromDecimal(value: string | undefined): `${number}%` | undefined {
+  return value === undefined ? undefined : (`${parseFloat(value) * 100}%` as `${number}%`)
+}
+
+function withContracts(overrides: Record<string, string | undefined>): Record<string, string> | undefined {
+  const entries = Object.entries(overrides).filter((entry): entry is [string, string] => !!entry[1])
+  return entries.length ? Object.fromEntries(entries) : undefined
+}
+
+function mapTx(result: unknown): unknown {
+  return toCliTxResult(result)
 }
 
 function toWTRXIfNative(tokenAddress: string, network: string): string {
@@ -79,11 +101,8 @@ async function getV2PairReserves(
   tokenA: string,
   tokenB: string,
 ): Promise<PairReserves> {
-  const tronWeb = await createReadonlyTronWeb(network)
-  const factoryAddress = V2_FACTORIES[network]
-  if (!factoryAddress) {
-    throw new Error(`V2 factory not configured for network: ${network}`)
-  }
+  const tronWeb = createReadonlyTronWeb({ network })
+  const factoryAddress = getV2Factory(network)
 
   const lookupA = getLookupToken(tokenA, network)
   const lookupB = getLookupToken(tokenB, network)
@@ -212,20 +231,18 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Add V2 liquidity?',
         spinnerLabel: 'Adding V2 liquidity...',
         errorLabel: 'V2 add liquidity failed',
-        execute: (kit) =>
-          kit.addLiquidityV2({
-            network,
-            routerAddress: router,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
+        execute: (sdk) =>
+          sdk.liquidity.v2.add.execute({
+            contracts: withContracts({ sunswapV2Router: router }),
             tokenA,
             tokenB,
             amountADesired: amountA,
             amountBDesired: amountB,
             amountAMin: opts.minA,
             amountBMin: opts.minB,
-            to: opts.to,
+            recipient: opts.to,
             deadline: opts.deadline,
-          }),
+          }).then(mapTx),
       })
     })
 
@@ -270,19 +287,17 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Remove V2 liquidity?',
         spinnerLabel: 'Removing V2 liquidity...',
         errorLabel: 'V2 remove liquidity failed',
-        execute: (kit) =>
-          kit.removeLiquidityV2({
-            network,
-            routerAddress: router,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
+        execute: (sdk) =>
+          sdk.liquidity.v2.remove.execute({
+            contracts: withContracts({ sunswapV2Router: router }),
             tokenA,
             tokenB,
             liquidity: opts.liquidity,
             amountAMin: opts.minA,
             amountBMin: opts.minB,
-            to: opts.to,
+            recipient: opts.to,
             deadline: opts.deadline,
-          }),
+          } as any).then(mapTx),
       })
     })
 
@@ -352,23 +367,21 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Mint V3 position?',
         spinnerLabel: 'Minting V3 position...',
         errorLabel: 'V3 mint failed',
-        execute: (kit) =>
-          kit.mintPositionV3({
-            network,
-            positionManagerAddress: pm,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
-            token0,
-            token1,
-            fee: opts.fee ? parseInt(opts.fee) : undefined,
+        execute: (sdk) =>
+          sdk.liquidity.v3.add.execute({
+            contracts: withContracts({ sunswapV3PositionManager: pm }),
+            tokenA: token0,
+            tokenB: token1,
+            fee: opts.fee ? parseInt(opts.fee) : 3000,
             tickLower: opts.tickLower ? parseInt(opts.tickLower) : undefined,
             tickUpper: opts.tickUpper ? parseInt(opts.tickUpper) : undefined,
-            amount0Desired: opts.amount0,
-            amount1Desired: opts.amount1,
+            amount0: opts.amount0,
+            amount1: opts.amount1,
             amount0Min: opts.min0,
             amount1Min: opts.min1,
             recipient: opts.recipient,
             deadline: opts.deadline,
-          }),
+          }).then(mapTx),
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.computedTicks) {
@@ -418,18 +431,16 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Increase V3 liquidity?',
         spinnerLabel: 'Increasing V3 liquidity...',
         errorLabel: 'V3 increase liquidity failed',
-        execute: (kit) =>
-          kit.increaseLiquidityV3({
-            network,
-            positionManagerAddress: pm,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
+        execute: (sdk) =>
+          sdk.liquidity.v3.increase.execute({
+            contracts: withContracts({ sunswapV3PositionManager: pm }),
             tokenId: opts.tokenId,
-            amount0Desired: opts.amount0,
-            amount1Desired: opts.amount1,
+            amount0: opts.amount0,
+            amount1: opts.amount1,
             amount0Min: opts.min0,
             amount1Min: opts.min1,
             deadline: opts.deadline,
-          }),
+          } as any).then(mapTx),
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.computedAmounts) {
@@ -467,17 +478,15 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Decrease V3 liquidity?',
         spinnerLabel: 'Decreasing V3 liquidity...',
         errorLabel: 'V3 decrease liquidity failed',
-        execute: (kit) =>
-          kit.decreaseLiquidityV3({
-            network,
-            positionManagerAddress: pm,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
+        execute: (sdk) =>
+          sdk.positions.v3.remove.execute({
+            contracts: withContracts({ sunswapV3PositionManager: pm }),
             tokenId: opts.tokenId,
             liquidity: opts.liquidity,
             amount0Min: opts.min0,
             amount1Min: opts.min1,
             deadline: opts.deadline,
-          }),
+          } as any).then(mapTx),
       })
     })
 
@@ -503,14 +512,12 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Collect V3 fees?',
         spinnerLabel: 'Collecting V3 fees...',
         errorLabel: 'V3 collect failed',
-        execute: (kit) =>
-          kit.collectPositionV3({
-            network,
-            positionManagerAddress: pm,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
+        execute: (sdk) =>
+          sdk.positions.v3.collect.execute({
+            contracts: withContracts({ sunswapV3PositionManager: pm }),
             tokenId: opts.tokenId,
             recipient: opts.recipient,
-          }),
+          }).then(mapTx),
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.estimatedFees) {
@@ -582,22 +589,22 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Mint V4 position?',
         spinnerLabel: 'Minting V4 position...',
         errorLabel: 'V4 mint failed',
-        execute: (kit) =>
-          kit.mintPositionV4({
-            network,
+        execute: (sdk) =>
+          sdk.liquidity.v4.add.execute({
             token0,
             token1,
             fee: opts.fee ? parseInt(opts.fee) : undefined,
+            tickSpacing: opts.fee ? undefined : 60,
             tickLower: opts.tickLower ? parseInt(opts.tickLower) : undefined,
             tickUpper: opts.tickUpper ? parseInt(opts.tickUpper) : undefined,
-            amount0Desired: opts.amount0,
-            amount1Desired: opts.amount1,
-            slippage: opts.slippage ? parseFloat(opts.slippage) : undefined,
+            amount0: opts.amount0,
+            amount1: opts.amount1,
+            slippage: percentFromDecimal(opts.slippage),
             recipient: opts.recipient,
             deadline: opts.deadline,
             sqrtPriceX96: opts.sqrtPrice,
-            createPoolIfNeeded: opts.createPool,
-          }),
+            createPool: opts.createPool,
+          } as any).then(mapTx),
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.poolCreated !== undefined) out['Pool Created'] = result.poolCreated
@@ -658,18 +665,18 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Increase V4 liquidity?',
         spinnerLabel: 'Increasing V4 liquidity...',
         errorLabel: 'V4 increase liquidity failed',
-        execute: (kit) =>
-          kit.increaseLiquidityV4({
-            network,
+        execute: (sdk) =>
+          sdk.liquidity.v4.increase.execute({
             tokenId: opts.tokenId,
             token0,
             token1,
             fee: opts.fee ? parseInt(opts.fee) : undefined,
-            amount0Desired: opts.amount0,
-            amount1Desired: opts.amount1,
-            slippage: opts.slippage ? parseFloat(opts.slippage) : undefined,
+            tickSpacing: opts.fee ? undefined : 60,
+            amount0: opts.amount0,
+            amount1: opts.amount1,
+            slippage: percentFromDecimal(opts.slippage),
             deadline: opts.deadline,
-          }),
+          } as any).then(mapTx),
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.computedAmounts) {
@@ -725,19 +732,19 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Decrease V4 liquidity?',
         spinnerLabel: 'Decreasing V4 liquidity...',
         errorLabel: 'V4 decrease liquidity failed',
-        execute: (kit) =>
-          kit.decreaseLiquidityV4({
-            network,
+        execute: (sdk) =>
+          sdk.positions.v4.remove.execute({
             tokenId: opts.tokenId,
             liquidity: opts.liquidity,
-            token0,
-            token1,
+            poolKey: opts.fee
+              ? { currency0: token0, currency1: token1, fee: parseInt(opts.fee), tickSpacing: 60, hooks: TRX_ADDRESS }
+              : undefined,
             fee: opts.fee ? parseInt(opts.fee) : undefined,
             amount0Min: opts.min0,
             amount1Min: opts.min1,
-            slippage: opts.slippage ? parseFloat(opts.slippage) : undefined,
+            slippage: percentFromDecimal(opts.slippage),
             deadline: opts.deadline,
-          }),
+          } as any).then(mapTx),
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.computedAmountMin) {
@@ -794,15 +801,15 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Collect V4 fees?',
         spinnerLabel: 'Collecting V4 fees...',
         errorLabel: 'V4 collect failed',
-        execute: (kit) =>
-          kit.collectPositionV4({
-            network,
+        execute: (sdk) =>
+          sdk.positions.v4.collect.execute({
             tokenId: opts.tokenId,
-            token0,
-            token1,
-            fee: opts.fee ? parseInt(opts.fee) : undefined,
+            poolKey:
+              token0 && token1 && opts.fee
+                ? { currency0: token0, currency1: token1, fee: parseInt(opts.fee), tickSpacing: 60, hooks: TRX_ADDRESS }
+                : undefined,
             deadline: opts.deadline,
-          }),
+          } as any).then(mapTx),
       })
     })
 
@@ -815,14 +822,18 @@ export function registerLiquidityCommands(program: Command) {
       await readAction({
         spinnerLabel: 'Fetching V4 position info...',
         errorLabel: 'V4 position info failed',
-        execute: (kit) => kit.getV4PositionInfo(opts.pm, opts.tokenId, getNetwork()),
+        execute: (sdk) =>
+          sdk.positions.v4.read({
+            tokenId: opts.tokenId,
+            contracts: withContracts({ sunswapV4PositionManager: opts.pm }),
+          }),
         transform: (result: any) => {
           if (!result) return { error: 'Position not found' }
           return {
-            currency0: result.poolKey.currency0,
-            currency1: result.poolKey.currency1,
-            fee: result.poolKey.fee,
-            tickSpacing: result.poolKey.tickSpacing,
+            currency0: result.poolKey?.currency0,
+            currency1: result.poolKey?.currency1,
+            fee: result.poolKey?.fee,
+            tickSpacing: result.poolKey?.tickSpacing,
             tickLower: result.tickLower,
             tickUpper: result.tickUpper,
             liquidity: result.liquidity,
