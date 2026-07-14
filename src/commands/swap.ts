@@ -19,31 +19,6 @@ interface RouteData {
   impact: string
 }
 
-function toCliRouteData(quote: any): RouteData[] {
-  if (quote?.kind === 'router') {
-    return (quote.routes || []).map((route: any) => ({
-      ...route,
-      amountIn: route.amountIn ?? quote.amountIn,
-      amountOut: route.amountOut ?? quote.amountOut,
-      symbols: route.symbols ?? [],
-      poolVersions: route.poolVersions ?? route.types ?? [],
-      impact: route.impact ?? route.priceImpact ?? '-',
-    }))
-  }
-  if (quote?.kind === 'wtrx') {
-    return [
-      {
-        amountIn: quote.amountIn,
-        amountOut: quote.amountOut,
-        symbols: [getSymbolOrAddress(quote.tokenIn, getNetwork()), getSymbolOrAddress(quote.tokenOut, getNetwork())],
-        poolVersions: ['WTRX'],
-        impact: '0',
-      },
-    ]
-  }
-  return []
-}
-
 function selectSwapRoute(quote: any): any {
   return quote.bestRoute ?? quote.route ?? quote.routes?.[0]
 }

@@ -4,7 +4,9 @@ describe('AgentWalletSdkAdapter', () => {
   it('adapts agent-wallet signing to SDK WalletAdapter', async () => {
     const agentWallet = {
       getAddress: jest.fn().mockResolvedValue('TAUN6FwrnwwmaEqYcckffC7wYmbaS6cBiX'),
-      signTransaction: jest.fn().mockResolvedValue(JSON.stringify({ txID: 'abc', signature: ['sig'] })),
+      signTransaction: jest
+        .fn()
+        .mockResolvedValue(JSON.stringify({ txID: 'abc', signature: ['sig'] })),
       signMessage: jest.fn().mockResolvedValue('signed'),
       signTypedData: jest.fn().mockResolvedValue('0xtyped'),
     }

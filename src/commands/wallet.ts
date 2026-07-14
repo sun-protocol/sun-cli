@@ -35,7 +35,10 @@ export function registerWalletCommands(program: Command) {
         errorLabel: 'Failed to get balances',
         execute: async (sdk) => {
           const owner = opts.owner || (await sdk.runtime.getAddress())
-          if (!owner) throw new Error('Wallet required. Set agent-wallet credentials before running this command.')
+          if (!owner)
+            throw new Error(
+              'Wallet required. Set agent-wallet credentials before running this command.',
+            )
           const balances = await readBalances(sdk.runtime, {
             owner,
             tokens: tokenList,

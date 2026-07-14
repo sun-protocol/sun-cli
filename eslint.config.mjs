@@ -3,6 +3,25 @@ import tseslint from 'typescript-eslint'
 import eslintPluginPrettier from 'eslint-plugin-prettier/recommended'
 
 export default tseslint.config(
+  {
+    ignores: [
+      '.worktrees/**',
+      '**/.worktrees/**',
+      '.superpowers/**',
+      '**/.superpowers/**',
+      'dist/**',
+      'node_modules/**',
+      'bin/**',
+      '.github/**',
+      'test/**/*.d.ts',
+      'test/**/*.js',
+      'test/**/*.js.map',
+      '*.js',
+      '*.mjs',
+      '*.cjs',
+      '**/*.js',
+    ],
+  },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   eslintPluginPrettier,
@@ -36,20 +55,5 @@ export default tseslint.config(
       'no-console': 'off',
       '@typescript-eslint/no-unused-vars': 'off',
     },
-  },
-  {
-    ignores: [
-      'dist/**',
-      'node_modules/**',
-      'bin/**',
-      '.github/**',
-      'test/**/*.d.ts',
-      'test/**/*.js',
-      'test/**/*.js.map',
-      '*.js',
-      '*.mjs',
-      '*.cjs',
-      '**/*.js',
-    ],
   },
 )

@@ -5,11 +5,7 @@ export function toCliTxResult<T>(result: T): unknown {
 
   const record = result as Record<string, unknown>
   const finalResult = record.finalResult as Record<string, unknown> | undefined
-  if (
-    finalResult &&
-    finalResult.type === 'transaction' &&
-    typeof finalResult.txid === 'string'
-  ) {
+  if (finalResult && finalResult.type === 'transaction' && typeof finalResult.txid === 'string') {
     return {
       txid: finalResult.txid,
       raw: finalResult.raw,

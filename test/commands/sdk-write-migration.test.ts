@@ -16,7 +16,9 @@ describe('SDK command migrations', () => {
     const readAction = jest.fn().mockResolvedValue(undefined)
     jest.doMock('../../src/lib/command', () => ({ readAction }))
     jest.doMock('../../src/lib/context', () => ({ getNetwork: () => 'nile' }))
-    const readBalances = jest.fn().mockResolvedValue([{ token: 'TRX', balance: '100', decimals: 6 }])
+    const readBalances = jest
+      .fn()
+      .mockResolvedValue([{ token: 'TRX', balance: '100', decimals: 6 }])
     jest.doMock('@sun-sdk/runtime', () => ({ readBalances }))
 
     const { registerWalletCommands } = require('../../src/commands/wallet')

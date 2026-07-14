@@ -275,9 +275,7 @@ const portfolioTable = {
 // ---------------------------------------------------------------------------
 
 export function registerSunpumpCommands(program: Command) {
-  const sp = program
-    .command('sunpump')
-    .description('SunPump endpoints (mainnet and nile).')
+  const sp = program.command('sunpump').description('SunPump endpoints (mainnet and nile).')
 
   // -------------------------- token group ----------------------------------
   const token = sp.command('token').description('Token info, search, holders, ranking')
@@ -697,7 +695,6 @@ export function registerSunpumpCommands(program: Command) {
     .description('Show SunPump token state (0 NOT_EXIST, 1 TRADING, 2 READY_TO_LAUNCH, 3 LAUNCHED)')
     .action(async (tokenAddress: string) => {
       try {
-        const network = getNetwork()
         const result = await withSpinner('Fetching token state...', async () => {
           const kit = await getKit()
           const state = await kit.pump.state({ token: tokenAddress })
@@ -738,7 +735,6 @@ export function registerSunpumpCommands(program: Command) {
         return
       }
       try {
-        const network = getNetwork()
         const quote: any = await withSpinner('Fetching buy quote...', async () => {
           const kit = await getKit()
           return kit.pump.quoteBuy({ token: tokenAddress, trxAmount: trxSun })
@@ -772,7 +768,6 @@ export function registerSunpumpCommands(program: Command) {
         return
       }
       try {
-        const network = getNetwork()
         const quote: any = await withSpinner('Fetching sell quote...', async () => {
           const kit = await getKit()
           return kit.pump.quoteSell({ token: tokenAddress, tokenAmount: tokenRaw })
@@ -833,12 +828,14 @@ export function registerSunpumpCommands(program: Command) {
         spinnerLabel: 'Submitting buy...',
         errorLabel: 'Buy failed',
         execute: (kit) =>
-          kit.pump.buy.execute({
-            token: tokenAddress,
-            trxAmount: trxSun,
-            minTokenOut: opts.minOut,
-            slippage: `${slippage * 100}%`,
-          } as any).then(toCliTxResult),
+          kit.pump.buy
+            .execute({
+              token: tokenAddress,
+              trxAmount: trxSun,
+              minTokenOut: opts.minOut,
+              slippage: `${slippage * 100}%`,
+            } as any)
+            .then(toCliTxResult),
         onSuccess: async (result: any) => {
           if (isJsonMode()) return
           const chalk = (await import('chalk')).default
@@ -903,12 +900,14 @@ export function registerSunpumpCommands(program: Command) {
         spinnerLabel: 'Submitting sell...',
         errorLabel: 'Sell failed',
         execute: (kit) =>
-          kit.pump.sell.execute({
-            token: tokenAddress,
-            tokenAmount: tokenRaw,
-            minTrxOut: opts.minOut,
-            slippage: `${slippage * 100}%`,
-          } as any).then(toCliTxResult),
+          kit.pump.sell
+            .execute({
+              token: tokenAddress,
+              tokenAmount: tokenRaw,
+              minTrxOut: opts.minOut,
+              slippage: `${slippage * 100}%`,
+            } as any)
+            .then(toCliTxResult),
         onSuccess: async (result: any) => {
           if (isJsonMode()) return
           const chalk = (await import('chalk')).default

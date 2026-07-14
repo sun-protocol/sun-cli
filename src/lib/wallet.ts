@@ -1,7 +1,4 @@
-import {
-  resolveWalletProvider,
-  type Wallet as BaseWallet,
-} from '@bankofai/agent-wallet'
+import { resolveWalletProvider } from '@bankofai/agent-wallet'
 import type { WalletAdapter } from '@sun-sdk/runtime'
 import { AgentWalletSdkAdapter } from './sdk/wallet'
 

@@ -33,7 +33,11 @@ export const commandHelpFixtures: readonly HelpFixture[] = [
   {
     name: 'token list',
     args: ['token', 'list', '--help'],
-    includes: ['Usage: sun token list [options]', '--address <tokenAddress>', '--protocol <protocol>'],
+    includes: [
+      'Usage: sun token list [options]',
+      '--address <tokenAddress>',
+      '--protocol <protocol>',
+    ],
   },
   {
     name: 'pool list',

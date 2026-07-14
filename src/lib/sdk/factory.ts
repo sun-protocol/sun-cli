@@ -1,7 +1,12 @@
 import { SunApiClient } from '@sun-sdk/api'
 import type { Network } from '@sun-sdk/core'
 import { SunSDK } from '@sun-sdk/protocols'
-import { createRuntime, type Runtime, type TronProvider, type WalletAdapter } from '@sun-sdk/runtime'
+import {
+  createRuntime,
+  type Runtime,
+  type TronProvider,
+  type WalletAdapter,
+} from '@sun-sdk/runtime'
 import { TronWeb } from 'tronweb'
 
 export interface SdkRuntimeOptions {
@@ -24,7 +29,9 @@ function getDefaultRpcUrl(network: Network): string {
 export function createReadonlyTronWeb(options: SdkRuntimeOptions = {}): TronWeb {
   const network = options.network ?? 'mainnet'
   const fullHost = options.rpcUrl || getDefaultRpcUrl(assertSdkNetwork(network))
-  const headers = options.tronGridApiKey ? { 'TRON-PRO-API-KEY': options.tronGridApiKey } : undefined
+  const headers = options.tronGridApiKey
+    ? { 'TRON-PRO-API-KEY': options.tronGridApiKey }
+    : undefined
   return new TronWeb({ fullHost, headers })
 }
 

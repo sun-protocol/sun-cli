@@ -360,12 +360,11 @@ sun contract send <contractAddress> transfer  --args '["TRecipient","1000000"]' 
 Access to SunPump — read-only API for discovery (token launches, trending lists,
 holder portfolios), token creation via the agent endpoint (`launch`), and
 on-chain trade commands (`buy`/`sell`/`quote-buy`/`quote-sell`/`state`) that talk
-to the bonding-curve contract through `sun-kit`. Read-only API calls and `launch`
+to the bonding-curve contract through `sun-sdk`. Read-only API calls and `launch`
 need no wallet; trade commands do.
 
-SunPump is **mainnet only** — both the API host (`https://api-v2.sunpump.meme/pump-api`)
-and the on-chain bonding-curve contract. Passing `--network nile` (or any non-mainnet
-value) to a `sunpump` subcommand will fail fast.
+SunPump supports **mainnet** and **nile**. The CLI selects the matching API host
+and on-chain bonding-curve contracts from `--network`.
 
 ```bash
 sun sunpump token king-of-hill                     # current king-of-the-hill token
@@ -416,8 +415,7 @@ base units.
 
 Endpoints requiring a signed message (`favors`) accept `--user-address`,
 `--signature`, `--signed-message` flags. Override the base URL with
-`SUNPUMP_API_BASE_URL` only when you have a custom mainnet-compatible host.
-
+`SUNPUMP_API_BASE_URL` only when you have a custom SunPump-compatible host.
 
 ---
 
@@ -565,6 +563,18 @@ npm run build
 npm test
 npm run lint
 ```
+
+Run the opt-in Nile real-signing test with a funded test wallet:
+
+```bash
+RUN_REAL_SIGNING_TESTS=1 \
+SUN_CLI_E2E_PRIVATE_KEY=<nile-private-key> \
+npm test -- --runTestsByPath test/e2e/real-signing.test.ts
+```
+
+By default this signs and broadcasts a minimal Nile WTRX `deposit()` transaction
+for `1` Sun. Override `SUN_CLI_E2E_WRAP_SUN` or `SUN_CLI_E2E_WTRX_ADDRESS` when
+you need a different amount or contract.
 
 Run from source:
 
