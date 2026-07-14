@@ -1,3 +1,5 @@
 export * from './types'
 export * from './errors'
 export * from './compat'
+export * from './wallet'
+export * from './factory'

@@ -12,13 +12,13 @@ describe('context', () => {
     walletConfigured?: boolean
     wallet?: Record<string, unknown>
   }) {
-    const wallet = options?.wallet ?? { type: 'agent-wallet' }
+    const wallet = options?.wallet ?? { kind: 'custom' }
     const initWallet = jest.fn().mockResolvedValue(undefined)
     const getWallet = jest.fn().mockReturnValue(wallet)
     const isWalletConfigured = jest.fn().mockReturnValue(options?.walletConfigured ?? true)
 
-    const SunAPI = jest.fn().mockImplementation(() => ({ kind: 'api-instance' }))
-    const SunKit = jest.fn().mockImplementation((config) => ({ kind: 'kit-instance', config }))
+    const createSunApiClient = jest.fn().mockReturnValue({ kind: 'api-instance' })
+    const createSunSDK = jest.fn().mockResolvedValue({ kind: 'sdk-instance' })
 
     jest.doMock('../../src/lib/wallet', () => ({
       initWallet,
@@ -26,9 +26,9 @@ describe('context', () => {
       isWalletConfigured,
     }))
 
-    jest.doMock('@sun-protocol/sun-kit', () => ({
-      SunAPI,
-      SunKit,
+    jest.doMock('../../src/lib/sdk/factory', () => ({
+      createSunApiClient,
+      createSunSDK,
     }))
 
     const contextModule = require('../../src/lib/context')
@@ -37,54 +37,50 @@ describe('context', () => {
       initWallet,
       getWallet,
       isWalletConfigured,
-      SunAPI,
-      SunKit,
+      createSunApiClient,
+      createSunSDK,
       wallet,
     }
   }
 
-  it('lazily initializes SunKit once and reuses the same instance', async () => {
+  it('lazily initializes SunSDK once and reuses the same instance', async () => {
     process.env.TRON_NETWORK = 'nile'
     process.env.TRONGRID_API_KEY = 'grid-key'
     process.env.TRON_RPC_URL = 'https://rpc.local'
 
-    const { contextModule, initWallet, getWallet, SunKit, wallet } = loadContextModule()
+    const { contextModule, initWallet, getWallet, createSunSDK, wallet } = loadContextModule()
 
-    const first = await contextModule.getKit()
+    const first = await contextModule.getSdk()
     const second = await contextModule.getKit()
 
     expect(initWallet).toHaveBeenCalledTimes(1)
     expect(getWallet).toHaveBeenCalledTimes(1)
-    expect(SunKit).toHaveBeenCalledTimes(1)
+    expect(createSunSDK).toHaveBeenCalledTimes(1)
     expect(first).toBe(second)
-    expect(first).toEqual({
-      kind: 'kit-instance',
-      config: {
-        wallet,
-        network: 'nile',
-        tronGridApiKey: 'grid-key',
-        rpcUrl: 'https://rpc.local',
-      },
+    expect(createSunSDK).toHaveBeenCalledWith({
+      wallet,
+      network: 'nile',
+      tronGridApiKey: 'grid-key',
+      rpcUrl: 'https://rpc.local',
     })
   })
 
-  it('creates SunKit without a wallet when none is configured', async () => {
+  it('creates SunSDK without a wallet when none is configured', async () => {
     process.env.TRON_GRID_API_KEY = 'fallback-key'
 
-    const { contextModule, getWallet, SunKit } = loadContextModule({
+    const { contextModule, getWallet, createSunSDK } = loadContextModule({
       walletConfigured: false,
     })
 
-    const kit = await contextModule.getKit()
+    await contextModule.getSdk()
 
     expect(getWallet).not.toHaveBeenCalled()
-    expect(SunKit).toHaveBeenCalledWith({
+    expect(createSunSDK).toHaveBeenCalledWith({
       wallet: undefined,
       network: 'mainnet',
       tronGridApiKey: 'fallback-key',
       rpcUrl: undefined,
     })
-    expect(kit.config.wallet).toBeUndefined()
   })
 
   it('throws from ensureWallet when initialization completes without a wallet', async () => {
@@ -100,12 +96,12 @@ describe('context', () => {
   })
 
   it('caches SunAPI instances', () => {
-    const { contextModule, SunAPI } = loadContextModule()
+    const { contextModule, createSunApiClient } = loadContextModule()
 
     const first = contextModule.getApi()
     const second = contextModule.getApi()
 
-    expect(SunAPI).toHaveBeenCalledTimes(1)
+    expect(createSunApiClient).toHaveBeenCalledTimes(1)
     expect(first).toBe(second)
   })
 })

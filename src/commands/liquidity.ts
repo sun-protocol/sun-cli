@@ -816,7 +816,7 @@ export function registerLiquidityCommands(program: Command) {
         spinnerLabel: 'Fetching V4 position info...',
         errorLabel: 'V4 position info failed',
         execute: (kit) => kit.getV4PositionInfo(opts.pm, opts.tokenId, getNetwork()),
-        transform: (result) => {
+        transform: (result: any) => {
           if (!result) return { error: 'Position not found' }
           return {
             currency0: result.poolKey.currency0,
