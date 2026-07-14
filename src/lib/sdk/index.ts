@@ -1,5 +1,6 @@
 export * from './types'
 export * from './errors'
 export * from './compat'
+export * from './constants'
 export * from './wallet'
 export * from './factory'

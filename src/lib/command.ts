@@ -226,7 +226,7 @@ export async function writeAction<T>(opts: WriteActionOpts<T>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// readAction — for read commands that need SunKit (balances, contract:read)
+// readAction — for read commands that need the protocol SDK runtime (balances, contract:read)
 // ---------------------------------------------------------------------------
 
 export interface ReadActionOpts<T = any> {
@@ -255,7 +255,7 @@ export async function readAction<T>(opts: ReadActionOpts<T>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// readApiAction — for read commands using SunAPI only (no wallet init)
+// readApiAction — for read commands using the SUN API client only (no wallet init)
 // ---------------------------------------------------------------------------
 
 export interface ReadApiActionOpts<T = any> {

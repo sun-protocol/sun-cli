@@ -3,7 +3,7 @@
  *
  * Mainnet only: https://api-v2.sunpump.meme/pump-api
  *
- * Standalone from sun-kit's SunAPI: SunPump is a separate service with its own
+ * Standalone SunPump client: SunPump is a separate service with its own
  * base URL and schema. Uses Node's global fetch (>=18).
  *
  * Methods mirror the OpenAPI operationIds documented in docs/sunpump-api.md.

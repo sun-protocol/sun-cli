@@ -95,7 +95,7 @@ describe('context', () => {
     expect(isWalletConfigured).toHaveBeenCalledTimes(1)
   })
 
-  it('caches SunAPI instances', () => {
+  it('caches SUN API client instances', () => {
     const { contextModule, createSunApiClient } = loadContextModule()
 
     const first = contextModule.getApi()
