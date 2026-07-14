@@ -3,6 +3,8 @@ import { getNetwork } from '../lib/context'
 import { writeAction, readAction } from '../lib/command'
 import { isJsonMode, output, outputError, withSpinner } from '../lib/output'
 import { resolveTokenAddress, getSymbolOrAddress } from '../lib/tokens'
+import { readContractByAbi, sendContractByAbi } from '@sun-sdk/runtime'
+import { toCliTxResult } from '../lib/sdk/compat'
 
 const ROUTER_API: Record<string, string> = {
   mainnet: 'https://rot.endjgfsv.link',
@@ -15,6 +17,44 @@ interface RouteData {
   symbols: string[]
   poolVersions: string[]
   impact: string
+}
+
+function toCliRouteData(quote: any): RouteData[] {
+  if (quote?.kind === 'router') {
+    return (quote.routes || []).map((route: any) => ({
+      ...route,
+      amountIn: route.amountIn ?? quote.amountIn,
+      amountOut: route.amountOut ?? quote.amountOut,
+      symbols: route.symbols ?? [],
+      poolVersions: route.poolVersions ?? route.types ?? [],
+      impact: route.impact ?? route.priceImpact ?? '-',
+    }))
+  }
+  if (quote?.kind === 'wtrx') {
+    return [
+      {
+        amountIn: quote.amountIn,
+        amountOut: quote.amountOut,
+        symbols: [getSymbolOrAddress(quote.tokenIn, getNetwork()), getSymbolOrAddress(quote.tokenOut, getNetwork())],
+        poolVersions: ['WTRX'],
+        impact: '0',
+      },
+    ]
+  }
+  return []
+}
+
+function selectSwapRoute(quote: any): any {
+  return quote.bestRoute ?? quote.route ?? quote.routes?.[0]
+}
+
+function cliSlippageToSdk(value: number): `${number}%` {
+  return `${value * 100}%` as `${number}%`
+}
+
+function parseAbi(value: string | undefined): any[] {
+  if (!value) throw new Error('--abi is required for SDK contract calls')
+  return JSON.parse(value)
 }
 
 async function fetchSwapQuote(
@@ -87,7 +127,17 @@ export function registerSwapCommands(program: Command) {
         confirmMsg: 'Execute this swap?',
         spinnerLabel: 'Executing swap...',
         errorLabel: 'Swap failed',
-        execute: (kit) => kit.swap({ tokenIn, tokenOut, amountIn, slippage, network }),
+        execute: async (sdk) => {
+          const quote = await sdk.swap.quote({ tokenIn, tokenOut, amountIn })
+          const route = selectSwapRoute(quote)
+          if (!route) throw new Error('No route available for this token pair')
+          const result = await sdk.swap.execute({
+            quote,
+            route,
+            slippage: cliSlippageToSdk(slippage),
+          })
+          return toCliTxResult(result)
+        },
         onSuccess: async (result: any) => {
           if (!isJsonMode()) {
             const chalk = (await import('chalk')).default
@@ -179,13 +229,12 @@ export function registerSwapCommands(program: Command) {
       await readAction({
         spinnerLabel: 'Quoting swap...',
         errorLabel: 'Quote failed',
-        execute: (kit) =>
-          kit.quoteExactInput({
-            network: getNetwork(),
-            routerAddress: opts.router,
+        execute: (sdk) =>
+          readContractByAbi(sdk.runtime, {
+            address: opts.router,
             functionName: opts.fn,
             args: JSON.parse(opts.args),
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
+            abi: parseAbi(opts.abi),
           }),
         transform: (result) => ({ result }),
       })
@@ -212,14 +261,13 @@ export function registerSwapCommands(program: Command) {
         spinnerLabel: 'Executing swap...',
         errorLabel: 'SwapExactInput failed',
         execute: (kit) =>
-          kit.swapExactInput({
-            network: getNetwork(),
-            routerAddress: opts.router,
+          sendContractByAbi(kit.runtime, {
+            address: opts.router,
             functionName: opts.fn,
             args: JSON.parse(opts.args),
-            value: opts.value,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
-          }),
+            value: opts.value === undefined ? undefined : BigInt(opts.value),
+            abi: parseAbi(opts.abi),
+          }).then(toCliTxResult),
       })
     })
 }

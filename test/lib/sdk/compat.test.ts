@@ -14,4 +14,16 @@ describe('SDK result compatibility', () => {
       result: true,
     })
   })
+
+  it('maps SDK transaction plan execution to txid shape', () => {
+    expect(
+      toCliTxResult({
+        txids: ['first', 'last'],
+        finalResult: { type: 'transaction', txid: 'last', raw: { result: true } },
+      }),
+    ).toEqual({
+      txid: 'last',
+      raw: { result: true },
+    })
+  })
 })

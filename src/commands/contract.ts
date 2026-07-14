@@ -1,6 +1,17 @@
 import { Command } from 'commander'
 import { getNetwork } from '../lib/context'
 import { writeAction, readAction } from '../lib/command'
+import { readContractByAbi, sendContractByAbi } from '@sun-sdk/runtime'
+import { toCliTxResult } from '../lib/sdk/compat'
+
+function parseAbi(value: string | undefined): any[] {
+  if (!value) throw new Error('--abi is required for SDK contract calls')
+  return JSON.parse(value)
+}
+
+function parseValue(value: string | undefined): bigint | undefined {
+  return value === undefined ? undefined : BigInt(value)
+}
 
 export function registerContractCommands(program: Command) {
   const contract = program
@@ -16,16 +27,13 @@ export function registerContractCommands(program: Command) {
       await readAction({
         spinnerLabel: `Reading ${functionName}...`,
         errorLabel: 'Contract read failed',
-        execute: (kit) =>
-          kit.readContract(
-            {
-              address,
-              functionName,
-              args: JSON.parse(opts.args),
-              abi: opts.abi ? JSON.parse(opts.abi) : undefined,
-            },
-            getNetwork(),
-          ),
+        execute: (sdk) =>
+          readContractByAbi(sdk.runtime, {
+            address,
+            functionName,
+            args: JSON.parse(opts.args),
+            abi: parseAbi(opts.abi),
+          }),
         transform: (result) => ({ result }),
       })
     })
@@ -50,14 +58,13 @@ export function registerContractCommands(program: Command) {
         spinnerLabel: `Sending ${functionName}...`,
         errorLabel: 'Contract send failed',
         execute: (kit) =>
-          kit.sendContractTx({
+          sendContractByAbi(kit.runtime, {
             address,
             functionName,
             args: JSON.parse(opts.args),
-            value: opts.value,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
-            network: getNetwork(),
-          }),
+            value: parseValue(opts.value),
+            abi: parseAbi(opts.abi),
+          }).then(toCliTxResult),
       })
     })
 }
