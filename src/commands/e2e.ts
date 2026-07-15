@@ -2,7 +2,9 @@ import { spawn } from 'child_process'
 import { Command } from 'commander'
 import { output } from '../lib/output'
 
-const SUNSWAP_V2_NILE_ROUTER = 'TMn1qrmYUMSTXo9babrJLzepKZoPC7M6Sy'
+const SUNSWAP_V2_NILE_ROUTER = 'TYMjxCXfqLpMWW1QToP6hbcjpion7EE25p'
+const NILE_USDT = 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf'
+const NILE_LEON_TEST_TOKEN = 'TDqjTkZ63yHB19w2n7vPm2qAkLHwn9fKKk'
 const TRC20_DECIMALS_ABI =
   '[{"type":"function","name":"decimals","inputs":[],"outputs":[{"type":"uint8"}]}]'
 const TRC20_APPROVE_ABI =
@@ -92,8 +94,25 @@ function isDryRunStep(step: E2EStep): boolean {
   return step.args.includes('--dry-run')
 }
 
+function v2AddArgs(v2TokenA: string, v2TokenB: string): string[] {
+  const args = [
+    'liquidity',
+    'v2:add',
+    '--token-a',
+    v2TokenA,
+    '--token-b',
+    v2TokenB,
+    '--amount-a',
+    process.env.SUN_E2E_V2_AMOUNT_A || '100000',
+  ]
+  if (process.env.SUN_E2E_V2_AMOUNT_B) {
+    args.push('--amount-b', process.env.SUN_E2E_V2_AMOUNT_B)
+  }
+  return args
+}
+
 function nileSteps(write: boolean): E2EStep[] {
-  const nileUsdt = 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf'
+  const nileUsdt = NILE_USDT
   const owner = process.env.SUN_E2E_OWNER || ''
   const tokenId = process.env.SUN_E2E_TOKEN_ID || '1'
   const liquidity = process.env.SUN_E2E_LIQUIDITY || '1'
@@ -102,10 +121,10 @@ function nileSteps(write: boolean): E2EStep[] {
   const spender = process.env.SUN_E2E_SPENDER || router
   const swapIn = process.env.SUN_E2E_SWAP_IN || 'TRX'
   const swapOut = process.env.SUN_E2E_SWAP_OUT || 'SUN'
-  const v2TokenA = process.env.SUN_E2E_V2_TOKEN_A || 'TRX'
-  const v2TokenB = process.env.SUN_E2E_V2_TOKEN_B || 'SUN'
-  const clToken0 = process.env.SUN_E2E_CL_TOKEN0 || 'USDD'
-  const clToken1 = process.env.SUN_E2E_CL_TOKEN1 || 'USDT'
+  const v2TokenA = process.env.SUN_E2E_V2_TOKEN_A || NILE_USDT
+  const v2TokenB = process.env.SUN_E2E_V2_TOKEN_B || NILE_LEON_TEST_TOKEN
+  const clToken0 = process.env.SUN_E2E_CL_TOKEN0 || NILE_USDT
+  const clToken1 = process.env.SUN_E2E_CL_TOKEN1 || NILE_LEON_TEST_TOKEN
 
   const readAndDryRun: E2EStep[] = [
     { name: 'wallet address', args: ['wallet', 'address'], requiresWallet: true },
@@ -157,19 +176,7 @@ function nileSteps(write: boolean): E2EStep[] {
     },
     {
       name: 'v2 add dry-run',
-      args: [
-        '--dry-run',
-        'liquidity',
-        'v2:add',
-        '--token-a',
-        v2TokenA,
-        '--token-b',
-        v2TokenB,
-        '--amount-a',
-        process.env.SUN_E2E_V2_AMOUNT_A || '10000',
-        '--amount-b',
-        process.env.SUN_E2E_V2_AMOUNT_B || '326000000000000000',
-      ],
+      args: ['--dry-run', ...v2AddArgs(v2TokenA, v2TokenB)],
       requiresWallet: true,
       write: true,
     },
@@ -339,19 +346,7 @@ function nileSteps(write: boolean): E2EStep[] {
     },
     {
       name: 'v2 add write',
-      args: [
-        '--yes',
-        'liquidity',
-        'v2:add',
-        '--token-a',
-        v2TokenA,
-        '--token-b',
-        v2TokenB,
-        '--amount-a',
-        process.env.SUN_E2E_V2_AMOUNT_A || '10000',
-        '--amount-b',
-        process.env.SUN_E2E_V2_AMOUNT_B || '326000000000000000',
-      ],
+      args: ['--yes', ...v2AddArgs(v2TokenA, v2TokenB)],
       requiresWallet: true,
       write: true,
     },

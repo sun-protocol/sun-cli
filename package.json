@@ -51,6 +51,7 @@
     "@sun-sdk/core": "0.1.2",
     "@sun-sdk/protocols": "0.1.2",
     "@sun-sdk/runtime": "0.1.2",
+    "@sun-sdk/sunswap-v2": "0.1.2",
     "chalk": "^4.1.2",
     "cli-table3": "^0.6.5",
     "commander": "^12.1.0",

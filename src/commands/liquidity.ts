@@ -49,6 +49,56 @@ const SUNSWAP_V2_PAIR_MIN_ABI = [
   },
 ]
 
+const SUNSWAP_V3_FACTORY_MIN_ABI = [
+  {
+    constant: true,
+    inputs: [
+      { name: 'tokenA', type: 'address' },
+      { name: 'tokenB', type: 'address' },
+      { name: 'fee', type: 'uint24' },
+    ],
+    name: 'getPool',
+    outputs: [{ name: 'pool', type: 'address' }],
+    type: 'function',
+  },
+]
+
+const SUNSWAP_V3_POOL_MIN_ABI = [
+  {
+    constant: true,
+    inputs: [],
+    name: 'slot0',
+    outputs: [
+      { name: 'sqrtPriceX96', type: 'uint160' },
+      { name: 'tick', type: 'int24' },
+      { name: 'observationIndex', type: 'uint16' },
+      { name: 'observationCardinality', type: 'uint16' },
+      { name: 'observationCardinalityNext', type: 'uint16' },
+      { name: 'feeProtocol', type: 'uint8' },
+      { name: 'unlocked', type: 'bool' },
+    ],
+    type: 'function',
+  },
+  {
+    constant: true,
+    inputs: [],
+    name: 'liquidity',
+    outputs: [{ name: '', type: 'uint128' }],
+    type: 'function',
+  },
+]
+
+const V3_TICK_SPACING_BY_FEE: Record<number, number> = {
+  100: 1,
+  500: 10,
+  3000: 60,
+  10000: 200,
+}
+
+const NILE_UNISWAP_V2_ROUTER_02 = 'TYMjxCXfqLpMWW1QToP6hbcjpion7EE25p'
+const V4_EMPTY_PARAMETERS = `0x${'0'.repeat(64)}`
+const CONSTANT_CALL_OWNER = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
+
 function assertSdkNetwork(network: string): Network {
   if (network === 'mainnet' || network === 'nile') return network
   throw new Error(`Unsupported SDK network: ${network}`)
@@ -56,6 +106,7 @@ function assertSdkNetwork(network: string): Network {
 
 function getV2Router(network: string, override?: string): string {
   if (override) return override
+  if (network === 'nile') return NILE_UNISWAP_V2_ROUTER_02
   return getContractAddress(assertSdkNetwork(network), 'sunswapV2Router')
 }
 
@@ -66,6 +117,10 @@ function getV3PositionManager(network: string, override?: string): string {
 
 function getV2Factory(network: string): string {
   return getContractAddress(assertSdkNetwork(network), 'sunswapV2Factory')
+}
+
+function getV3Factory(network: string): string {
+  return getContractAddress(assertSdkNetwork(network), 'sunswapV3Factory')
 }
 
 function percentFromDecimal(value: string | undefined): `${number}%` | undefined {
@@ -106,11 +161,59 @@ function tokenRef(address: string) {
   return { address } as never
 }
 
+function createV4PoolKey(input: {
+  network: string
+  token0: string
+  token1: string
+  fee?: string
+  hooks?: string
+  parameters?: string
+}) {
+  return {
+    network: assertSdkNetwork(input.network),
+    currency0: input.token0,
+    currency1: input.token1,
+    hooks: input.hooks || TRX_ADDRESS,
+    fee: input.fee ? parseInt(input.fee) : 3000,
+    parameters: input.parameters || V4_EMPTY_PARAMETERS,
+  } as never
+}
+
 interface PairReserves {
   reserveA: string
   reserveB: string
   pairExists: boolean
   pairAddress?: string
+}
+
+interface V3PoolState {
+  sqrtRatioX96: string
+  liquidity: string
+  tickCurrent: number
+  tickSpacing: number
+  poolAddress: string
+}
+
+function wordToAddress(tronWeb: ReturnType<typeof createReadonlyTronWeb>, word: string): string {
+  return tronWeb.address.fromHex(`41${word.slice(-40)}`)
+}
+
+async function triggerConstant(
+  tronWeb: ReturnType<typeof createReadonlyTronWeb>,
+  target: string,
+  functionSelector: string,
+  parameters: { type: string; value: unknown }[] = [],
+): Promise<string> {
+  const result = await tronWeb.transactionBuilder.triggerConstantContract(
+    target,
+    functionSelector,
+    {},
+    parameters as never,
+    CONSTANT_CALL_OWNER,
+  )
+  const raw = (result as { constant_result?: string[] }).constant_result?.[0]
+  if (!raw) throw new Error(`Empty constant result for ${functionSelector}`)
+  return raw
 }
 
 async function getV2PairReserves(
@@ -124,22 +227,23 @@ async function getV2PairReserves(
   const lookupA = getLookupToken(tokenA, network)
   const lookupB = getLookupToken(tokenB, network)
 
-  const factory = await tronWeb.contract(SUNSWAP_V2_FACTORY_MIN_ABI as any, factoryAddress)
-  const pairHex = await factory.getPair(lookupA, lookupB).call()
-  const pairBase58 = tronWeb.address.fromHex(pairHex)
+  const pairHex = await triggerConstant(tronWeb, factoryAddress, 'getPair(address,address)', [
+    { type: 'address', value: lookupA },
+    { type: 'address', value: lookupB },
+  ])
+  const pairBase58 = wordToAddress(tronWeb, pairHex)
   const zeroBase58 = tronWeb.address.fromHex('410000000000000000000000000000000000000000')
 
   if (!pairBase58 || pairBase58 === zeroBase58) {
     return { reserveA: '0', reserveB: '0', pairExists: false }
   }
 
-  const pair = await tronWeb.contract(SUNSWAP_V2_PAIR_MIN_ABI as any, pairBase58)
-  const reserves = await pair.getReserves().call()
-  const token0Hex = await pair.token0().call()
+  const reservesHex = await triggerConstant(tronWeb, pairBase58, 'getReserves()')
+  const token0Hex = await triggerConstant(tronWeb, pairBase58, 'token0()')
 
-  const token0 = tronWeb.address.fromHex(token0Hex)
-  const reserve0 = (reserves._reserve0 ?? reserves[0]).toString()
-  const reserve1 = (reserves._reserve1 ?? reserves[1]).toString()
+  const token0 = wordToAddress(tronWeb, token0Hex)
+  const reserve0 = BigInt(`0x${reservesHex.slice(0, 64)}`).toString()
+  const reserve1 = BigInt(`0x${reservesHex.slice(64, 128)}`).toString()
 
   const reserveA = token0 === lookupA ? reserve0 : reserve1
   const reserveB = token0 === lookupB ? reserve0 : reserve1
@@ -161,6 +265,87 @@ function calculateOptimalAmount(
   }
 
   return ((amount * rOther) / rProvided).toString()
+}
+
+function readContractString(result: any, key: string, index: number): string {
+  const value = result?.[key] ?? result?.[index]
+  if (value === undefined || value === null) {
+    throw new Error(`Malformed contract result: missing ${key}`)
+  }
+  return value.toString()
+}
+
+async function getV3PoolState(
+  network: string,
+  tokenA: string,
+  tokenB: string,
+  fee: number,
+): Promise<V3PoolState> {
+  const tronWeb = createReadonlyTronWeb({ network })
+  const factoryAddress = getV3Factory(network)
+  const lookupA = getLookupToken(tokenA, network)
+  const lookupB = getLookupToken(tokenB, network)
+
+  const poolHex = await triggerConstant(tronWeb, factoryAddress, 'getPool(address,address,uint24)', [
+    { type: 'address', value: lookupA },
+    { type: 'address', value: lookupB },
+    { type: 'uint24', value: fee },
+  ])
+  const poolAddress = wordToAddress(tronWeb, poolHex)
+  const zeroBase58 = tronWeb.address.fromHex('410000000000000000000000000000000000000000')
+
+  if (!poolAddress || poolAddress === zeroBase58) {
+    throw new Error(`V3 pool does not exist for ${lookupA}/${lookupB} fee ${fee}`)
+  }
+
+  const slot0Hex = await triggerConstant(tronWeb, poolAddress, 'slot0()')
+  const liquidityHex = await triggerConstant(tronWeb, poolAddress, 'liquidity()')
+  const tickSpacing = V3_TICK_SPACING_BY_FEE[fee]
+
+  if (!tickSpacing) {
+    throw new Error(`Unsupported V3 fee tier: ${fee}`)
+  }
+
+  return {
+    sqrtRatioX96: BigInt(`0x${slot0Hex.slice(0, 64)}`).toString(),
+    tickCurrent: Number(BigInt.asIntN(24, BigInt(`0x${slot0Hex.slice(64, 128)}`))),
+    liquidity: BigInt(`0x${liquidityHex}`).toString(),
+    tickSpacing,
+    poolAddress,
+  }
+}
+
+function defaultV3TickRange(
+  tickCurrent: number,
+  tickSpacing: number,
+  amount0?: string,
+  amount1?: string,
+): {
+  tickLower: number
+  tickUpper: number
+} {
+  const base = Math.floor(tickCurrent / tickSpacing) * tickSpacing
+  const hasAmount0 = amount0 !== undefined && BigInt(amount0) > 0n
+  const hasAmount1 = amount1 !== undefined && BigInt(amount1) > 0n
+
+  if (hasAmount0 && !hasAmount1) {
+    return {
+      tickLower: base + tickSpacing,
+      tickUpper: base + tickSpacing * 101,
+    }
+  }
+
+  if (!hasAmount0 && hasAmount1) {
+    return {
+      tickLower: base - tickSpacing * 101,
+      tickUpper: base - tickSpacing,
+    }
+  }
+
+  return {
+    tickLower: base - tickSpacing * 10,
+    tickUpper: base + tickSpacing * 10,
+  }
 }
 
 export function registerLiquidityCommands(program: Command) {
@@ -449,8 +634,13 @@ export function registerLiquidityCommands(program: Command) {
     .option('--amount1 <raw>', 'Desired amount of token1')
     .option('--min0 <raw>', 'Minimum amount of token0')
     .option('--min1 <raw>', 'Minimum amount of token1')
+    .option('--slippage <n>', 'Slippage tolerance as decimal (e.g. 0.01 for 1%)')
     .option('--recipient <address>', 'NFT recipient')
     .option('--deadline <timestamp>', 'Unix timestamp deadline')
+    .option('--sqrt-ratio-x96 <raw>', 'Pool sqrtRatioX96 override')
+    .option('--pool-liquidity <raw>', 'Pool liquidity override')
+    .option('--tick-current <n>', 'Pool current tick override')
+    .option('--tick-spacing <n>', 'Pool tick spacing override')
     .option('--abi <json>', 'Optional PM ABI as JSON array')
     .action(async (opts) => {
       const network = getNetwork()
@@ -466,8 +656,10 @@ export function registerLiquidityCommands(program: Command) {
         return
       }
 
-      const token0 = toWTRXIfNative(token0Input, network)
-      const token1 = toWTRXIfNative(token1Input, network)
+      const token0 = token0Input
+      const token1 = token1Input
+      const poolToken0 = getLookupToken(token0Input, network)
+      const poolToken1 = getLookupToken(token1Input, network)
 
       if (!opts.amount0 && !opts.amount1) {
         console.error('Error: At least one of --amount0 or --amount1 is required')
@@ -477,8 +669,8 @@ export function registerLiquidityCommands(program: Command) {
 
       const token0Display = getSymbolOrAddress(token0Input, network)
       const token1Display = getSymbolOrAddress(token1Input, network)
-      const token0Note = token0 !== token0Input ? ` → WTRX` : ''
-      const token1Note = token1 !== token1Input ? ` → WTRX` : ''
+      const token0Note = poolToken0 !== token0Input ? ` → pool WTRX` : ''
+      const token1Note = poolToken1 !== token1Input ? ` → pool WTRX` : ''
 
       const tickRange =
         opts.tickLower && opts.tickUpper ? `[${opts.tickLower}, ${opts.tickUpper}]` : '(auto)'
@@ -493,28 +685,63 @@ export function registerLiquidityCommands(program: Command) {
           'Tick Range': tickRange,
           Amount0: opts.amount0 || '(auto)',
           Amount1: opts.amount1 || '(auto)',
+          Slippage: opts.slippage
+            ? `${(parseFloat(opts.slippage) * 100).toFixed(2)}%`
+            : '(default)',
           Network: network,
         },
         confirmMsg: 'Mint V3 position?',
         spinnerLabel: 'Minting V3 position...',
         errorLabel: 'V3 mint failed',
-        execute: (sdk) =>
-          sdk.liquidity.v3.add
+        execute: async (sdk) => {
+          const fee = opts.fee ? parseInt(opts.fee) : 3000
+          const poolState =
+            opts.sqrtRatioX96 && opts.poolLiquidity && opts.tickCurrent
+              ? {
+                  sqrtRatioX96: opts.sqrtRatioX96,
+                  liquidity: opts.poolLiquidity,
+                  tickCurrent: parseInt(opts.tickCurrent),
+                  tickSpacing: opts.tickSpacing
+                    ? parseInt(opts.tickSpacing)
+                    : V3_TICK_SPACING_BY_FEE[fee],
+                  poolAddress: '(manual)',
+                }
+              : await getV3PoolState(network, token0, token1, fee)
+
+          const ticks =
+            opts.tickLower && opts.tickUpper
+              ? { tickLower: parseInt(opts.tickLower), tickUpper: parseInt(opts.tickUpper) }
+              : defaultV3TickRange(
+                  poolState.tickCurrent,
+                  poolState.tickSpacing,
+                  opts.amount0,
+                  opts.amount1,
+                )
+
+          return sdk.liquidity.v3.add
             .execute({
               contracts: withContracts({ sunswapV3PositionManager: pm }),
               tokenA: token0,
               tokenB: token1,
-              fee: opts.fee ? parseInt(opts.fee) : 3000,
-              tickLower: opts.tickLower ? parseInt(opts.tickLower) : undefined,
-              tickUpper: opts.tickUpper ? parseInt(opts.tickUpper) : undefined,
-              amount0: opts.amount0,
-              amount1: opts.amount1,
+              fee,
+              pool: {
+                sqrtRatioX96: poolState.sqrtRatioX96,
+                liquidity: poolState.liquidity,
+                tickCurrent: poolState.tickCurrent,
+                tickSpacing: poolState.tickSpacing,
+              },
+              tickLower: ticks.tickLower,
+              tickUpper: ticks.tickUpper,
+              amount0: opts.amount0 || '0',
+              amount1: opts.amount1 || '0',
               amount0Min: opts.min0,
               amount1Min: opts.min1,
+              slippage: percentFromDecimal(opts.slippage),
               recipient: opts.recipient,
               deadline: opts.deadline,
             })
-            .then(mapTx),
+            .then(mapTx)
+        },
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.computedTicks) {
@@ -540,6 +767,7 @@ export function registerLiquidityCommands(program: Command) {
     .option('--amount1 <raw>', 'Additional amount of token1')
     .option('--min0 <raw>', 'Minimum amount of token0')
     .option('--min1 <raw>', 'Minimum amount of token1')
+    .option('--slippage <n>', 'Slippage tolerance as decimal (e.g. 0.01 for 1%)')
     .option('--deadline <timestamp>', 'Unix timestamp deadline')
     .option('--abi <json>', 'Optional PM ABI as JSON array')
     .action(async (opts) => {
@@ -559,23 +787,46 @@ export function registerLiquidityCommands(program: Command) {
           'Token ID': opts.tokenId,
           Amount0: opts.amount0 || '(auto)',
           Amount1: opts.amount1 || '(auto)',
+          Slippage: opts.slippage
+            ? `${(parseFloat(opts.slippage) * 100).toFixed(2)}%`
+            : '(default)',
           Network: network,
         },
         confirmMsg: 'Increase V3 liquidity?',
         spinnerLabel: 'Increasing V3 liquidity...',
         errorLabel: 'V3 increase liquidity failed',
-        execute: (sdk) =>
-          sdk.liquidity.v3.increase
+        execute: async (sdk) => {
+          const snapshot = await sdk.positions.v3.read({ tokenId: opts.tokenId })
+          const poolState = await getV3PoolState(
+            network,
+            snapshot.token0,
+            snapshot.token1,
+            snapshot.fee,
+          )
+          return sdk.liquidity.v3.increase
             .execute({
               contracts: withContracts({ sunswapV3PositionManager: pm }),
               tokenId: opts.tokenId,
-              amount0: opts.amount0,
-              amount1: opts.amount1,
+              tokenA: snapshot.token0,
+              tokenB: snapshot.token1,
+              fee: snapshot.fee,
+              pool: {
+                sqrtRatioX96: poolState.sqrtRatioX96,
+                liquidity: poolState.liquidity,
+                tickCurrent: poolState.tickCurrent,
+                tickSpacing: poolState.tickSpacing,
+              },
+              tickLower: snapshot.tickLower,
+              tickUpper: snapshot.tickUpper,
+              amount0: opts.amount0 || '0',
+              amount1: opts.amount1 || '0',
               amount0Min: opts.min0,
               amount1Min: opts.min1,
+              slippage: percentFromDecimal(opts.slippage),
               deadline: opts.deadline,
             } as any)
-            .then(mapTx),
+            .then(mapTx)
+        },
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.computedAmounts) {
@@ -596,6 +847,7 @@ export function registerLiquidityCommands(program: Command) {
     .requiredOption('--liquidity <raw>', 'Amount of liquidity to remove')
     .option('--min0 <raw>', 'Minimum amount of token0 to receive')
     .option('--min1 <raw>', 'Minimum amount of token1 to receive')
+    .option('--slippage <n>', 'Slippage tolerance as decimal (e.g. 0.01 for 1%)')
     .option('--deadline <timestamp>', 'Unix timestamp deadline')
     .option('--abi <json>', 'Optional PM ABI as JSON array')
     .action(async (opts) => {
@@ -608,22 +860,40 @@ export function registerLiquidityCommands(program: Command) {
           'Position Manager': pm,
           'Token ID': opts.tokenId,
           Liquidity: opts.liquidity,
+          Slippage: opts.slippage
+            ? `${(parseFloat(opts.slippage) * 100).toFixed(2)}%`
+            : '(default)',
           Network: network,
         },
         confirmMsg: 'Decrease V3 liquidity?',
         spinnerLabel: 'Decreasing V3 liquidity...',
         errorLabel: 'V3 decrease liquidity failed',
-        execute: (sdk) =>
-          sdk.positions.v3.remove
+        execute: async (sdk) => {
+          const snapshot = await sdk.positions.v3.read({ tokenId: opts.tokenId })
+          const poolState = await getV3PoolState(
+            network,
+            snapshot.token0,
+            snapshot.token1,
+            snapshot.fee,
+          )
+          return sdk.positions.v3.remove
             .execute({
               contracts: withContracts({ sunswapV3PositionManager: pm }),
               tokenId: opts.tokenId,
               liquidity: opts.liquidity,
+              pool: {
+                sqrtRatioX96: poolState.sqrtRatioX96,
+                liquidity: poolState.liquidity,
+                tickCurrent: poolState.tickCurrent,
+                tickSpacing: poolState.tickSpacing,
+              },
               amount0Min: opts.min0,
               amount1Min: opts.min1,
+              slippage: percentFromDecimal(opts.slippage),
               deadline: opts.deadline,
             } as any)
-            .then(mapTx),
+            .then(mapTx)
+        },
       })
     })
 
@@ -679,10 +949,15 @@ export function registerLiquidityCommands(program: Command) {
     .requiredOption('--token0 <tokenOrAddress>', 'Token0 (symbol like TRX/USDT or address)')
     .requiredOption('--token1 <tokenOrAddress>', 'Token1 (symbol like TRX/USDT or address)')
     .option('--fee <n>', 'Pool fee tier (e.g. 500)')
+    .option('--hooks <address>', 'V4 hooks address')
+    .option('--parameters <hex>', 'V4 pool parameters bytes32')
     .option('--tick-lower <n>', 'Lower tick (auto-computed if omitted)')
     .option('--tick-upper <n>', 'Upper tick (auto-computed if omitted)')
+    .option('--liquidity <raw>', 'Liquidity amount to mint')
     .option('--amount0 <raw>', 'Desired amount of token0')
     .option('--amount1 <raw>', 'Desired amount of token1')
+    .option('--amount0-max <raw>', 'Maximum amount of token0')
+    .option('--amount1-max <raw>', 'Maximum amount of token1')
     .option('--slippage <n>', 'Slippage tolerance as decimal (e.g. 0.01 for 1%)')
     .option('--recipient <address>', 'NFT recipient')
     .option('--deadline <timestamp>', 'Unix timestamp deadline')
@@ -714,11 +989,13 @@ export function registerLiquidityCommands(program: Command) {
         summary: {
           Token0: `${token0Display}${token0Note} (${token0})`,
           Token1: `${token1Display}${token1Note} (${token1})`,
-          Fee: opts.fee || '(auto)',
+          Fee: opts.fee || '3000 (default)',
+          Hooks: opts.hooks || TRX_ADDRESS,
           'Tick Range':
-            opts.tickLower && opts.tickUpper ? `[${opts.tickLower}, ${opts.tickUpper}]` : '(auto)',
-          Amount0: opts.amount0 || '(auto)',
-          Amount1: opts.amount1 || '(auto)',
+            opts.tickLower && opts.tickUpper ? `[${opts.tickLower}, ${opts.tickUpper}]` : '[-120, 120]',
+          Liquidity: opts.liquidity || '(required for write)',
+          'Amount0 Max': opts.amount0Max || opts.amount0 || '0',
+          'Amount1 Max': opts.amount1Max || opts.amount1 || '0',
           Slippage: opts.slippage
             ? `${(parseFloat(opts.slippage) * 100).toFixed(2)}%`
             : '(default)',
@@ -728,24 +1005,30 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Mint V4 position?',
         spinnerLabel: 'Minting V4 position...',
         errorLabel: 'V4 mint failed',
-        execute: (sdk) =>
-          sdk.liquidity.v4.add
+        execute: (sdk) => {
+          if (!opts.liquidity) {
+            throw new Error('V4 mint requires --liquidity for write execution')
+          }
+          return sdk.liquidity.v4.add
             .execute({
-              token0,
-              token1,
-              fee: opts.fee ? parseInt(opts.fee) : undefined,
-              tickSpacing: opts.fee ? undefined : 60,
-              tickLower: opts.tickLower ? parseInt(opts.tickLower) : undefined,
-              tickUpper: opts.tickUpper ? parseInt(opts.tickUpper) : undefined,
-              amount0: opts.amount0,
-              amount1: opts.amount1,
-              slippage: percentFromDecimal(opts.slippage),
+              poolKey: createV4PoolKey({
+                network,
+                token0,
+                token1,
+                fee: opts.fee,
+                hooks: opts.hooks,
+                parameters: opts.parameters,
+              }),
+              tickLower: opts.tickLower ? parseInt(opts.tickLower) : -120,
+              tickUpper: opts.tickUpper ? parseInt(opts.tickUpper) : 120,
+              liquidity: opts.liquidity,
+              amount0Max: opts.amount0Max || opts.amount0 || '0',
+              amount1Max: opts.amount1Max || opts.amount1 || '0',
               recipient: opts.recipient,
               deadline: opts.deadline,
-              sqrtPriceX96: opts.sqrtPrice,
-              createPool: opts.createPool,
-            } as any)
-            .then(mapTx),
+            })
+            .then(mapTx)
+        },
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.poolCreated !== undefined) out['Pool Created'] = result.poolCreated
@@ -770,8 +1053,13 @@ export function registerLiquidityCommands(program: Command) {
     .requiredOption('--token0 <tokenOrAddress>', 'Token0 (symbol like TRX/USDT or address)')
     .requiredOption('--token1 <tokenOrAddress>', 'Token1 (symbol like TRX/USDT or address)')
     .option('--fee <n>', 'Pool fee tier')
+    .option('--hooks <address>', 'V4 hooks address')
+    .option('--parameters <hex>', 'V4 pool parameters bytes32')
+    .option('--liquidity <raw>', 'Liquidity amount to add')
     .option('--amount0 <raw>', 'Additional amount of token0')
     .option('--amount1 <raw>', 'Additional amount of token1')
+    .option('--amount0-max <raw>', 'Maximum amount of token0')
+    .option('--amount1-max <raw>', 'Maximum amount of token1')
     .option('--slippage <n>', 'Slippage tolerance as decimal')
     .option('--deadline <timestamp>', 'Unix timestamp deadline')
     .action(async (opts) => {
@@ -799,27 +1087,37 @@ export function registerLiquidityCommands(program: Command) {
           'Token ID': opts.tokenId,
           Token0: `${token0Display} (${token0})`,
           Token1: `${token1Display} (${token1})`,
-          Amount0: opts.amount0 || '(auto)',
-          Amount1: opts.amount1 || '(auto)',
+          Fee: opts.fee || '3000 (default)',
+          Liquidity: opts.liquidity || '(required for write)',
+          'Amount0 Max': opts.amount0Max || opts.amount0 || '0',
+          'Amount1 Max': opts.amount1Max || opts.amount1 || '0',
           Network: network,
         },
         confirmMsg: 'Increase V4 liquidity?',
         spinnerLabel: 'Increasing V4 liquidity...',
         errorLabel: 'V4 increase liquidity failed',
-        execute: (sdk) =>
-          sdk.liquidity.v4.increase
+        execute: (sdk) => {
+          if (!opts.liquidity) {
+            throw new Error('V4 increase requires --liquidity for write execution')
+          }
+          return sdk.liquidity.v4.increase
             .execute({
+              poolKey: createV4PoolKey({
+                network,
+                token0,
+                token1,
+                fee: opts.fee,
+                hooks: opts.hooks,
+                parameters: opts.parameters,
+              }),
               tokenId: opts.tokenId,
-              token0,
-              token1,
-              fee: opts.fee ? parseInt(opts.fee) : undefined,
-              tickSpacing: opts.fee ? undefined : 60,
-              amount0: opts.amount0,
-              amount1: opts.amount1,
-              slippage: percentFromDecimal(opts.slippage),
+              liquidity: opts.liquidity,
+              amount0Max: opts.amount0Max || opts.amount0 || '0',
+              amount1Max: opts.amount1Max || opts.amount1 || '0',
               deadline: opts.deadline,
-            } as any)
-            .then(mapTx),
+            })
+            .then(mapTx)
+        },
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.computedAmounts) {
@@ -840,6 +1138,8 @@ export function registerLiquidityCommands(program: Command) {
     .requiredOption('--token0 <tokenOrAddress>', 'Token0 (symbol like TRX/USDT or address)')
     .requiredOption('--token1 <tokenOrAddress>', 'Token1 (symbol like TRX/USDT or address)')
     .option('--fee <n>', 'Pool fee tier')
+    .option('--hooks <address>', 'V4 hooks address')
+    .option('--parameters <hex>', 'V4 pool parameters bytes32')
     .option('--min0 <raw>', 'Minimum amount of token0 to receive')
     .option('--min1 <raw>', 'Minimum amount of token1 to receive')
     .option('--slippage <n>', 'Slippage tolerance as decimal')
@@ -870,6 +1170,7 @@ export function registerLiquidityCommands(program: Command) {
           Liquidity: opts.liquidity,
           Token0: `${token0Display} (${token0})`,
           Token1: `${token1Display} (${token1})`,
+          Fee: opts.fee || '3000 (default)',
           Network: network,
         },
         confirmMsg: 'Decrease V4 liquidity?',
@@ -880,16 +1181,14 @@ export function registerLiquidityCommands(program: Command) {
             .execute({
               tokenId: opts.tokenId,
               liquidity: opts.liquidity,
-              poolKey: opts.fee
-                ? {
-                    currency0: token0,
-                    currency1: token1,
-                    fee: parseInt(opts.fee),
-                    tickSpacing: 60,
-                    hooks: TRX_ADDRESS,
-                  }
-                : undefined,
-              fee: opts.fee ? parseInt(opts.fee) : undefined,
+              poolKey: createV4PoolKey({
+                network,
+                token0,
+                token1,
+                fee: opts.fee,
+                hooks: opts.hooks,
+                parameters: opts.parameters,
+              }),
               amount0Min: opts.min0,
               amount1Min: opts.min1,
               slippage: percentFromDecimal(opts.slippage),
@@ -915,6 +1214,8 @@ export function registerLiquidityCommands(program: Command) {
     .option('--token0 <tokenOrAddress>', 'Token0 (symbol like TRX/USDT or address)')
     .option('--token1 <tokenOrAddress>', 'Token1 (symbol like TRX/USDT or address)')
     .option('--fee <n>', 'Pool fee tier')
+    .option('--hooks <address>', 'V4 hooks address')
+    .option('--parameters <hex>', 'V4 pool parameters bytes32')
     .option('--deadline <timestamp>', 'Unix timestamp deadline')
     .action(async (opts) => {
       const network = getNetwork()
@@ -958,13 +1259,14 @@ export function registerLiquidityCommands(program: Command) {
               tokenId: opts.tokenId,
               poolKey:
                 token0 && token1 && opts.fee
-                  ? {
-                      currency0: token0,
-                      currency1: token1,
-                      fee: parseInt(opts.fee),
-                      tickSpacing: 60,
-                      hooks: TRX_ADDRESS,
-                    }
+                  ? createV4PoolKey({
+                      network,
+                      token0,
+                      token1,
+                      fee: opts.fee,
+                      hooks: opts.hooks,
+                      parameters: opts.parameters,
+                    })
                   : undefined,
               deadline: opts.deadline,
             } as any)
