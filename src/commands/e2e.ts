@@ -1,7 +1,12 @@
 import { spawn } from 'child_process'
 import { Command } from 'commander'
-import { SUNSWAP_V2_NILE_ROUTER } from '@sun-protocol/sun-kit'
 import { output } from '../lib/output'
+
+const SUNSWAP_V2_NILE_ROUTER = 'TMn1qrmYUMSTXo9babrJLzepKZoPC7M6Sy'
+const TRC20_DECIMALS_ABI =
+  '[{"type":"function","name":"decimals","inputs":[],"outputs":[{"type":"uint8"}]}]'
+const TRC20_APPROVE_ABI =
+  '[{"type":"function","name":"approve","inputs":[{"type":"address"},{"type":"uint256"}],"outputs":[{"type":"bool"}]}]'
 
 interface E2EStep {
   name: string
@@ -24,8 +29,8 @@ interface E2EResult {
 function hasWalletEnv(): boolean {
   return Boolean(
     process.env.AGENT_WALLET_PRIVATE_KEY ||
-      process.env.AGENT_WALLET_MNEMONIC ||
-      process.env.AGENT_WALLET_PASSWORD,
+    process.env.AGENT_WALLET_MNEMONIC ||
+    process.env.AGENT_WALLET_PASSWORD,
   )
 }
 
@@ -93,7 +98,7 @@ function nileSteps(write: boolean): E2EStep[] {
   const tokenId = process.env.SUN_E2E_TOKEN_ID || '1'
   const liquidity = process.env.SUN_E2E_LIQUIDITY || '1'
   const router = process.env.SUN_E2E_ROUTER || SUNSWAP_V2_NILE_ROUTER
-  const pm = process.env.SUN_E2E_V3_PM || 'TJRabPrwbZy45sbavfcjinPJC18kjpRTv8'
+  const v4Pm = process.env.SUN_E2E_V4_PM || 'TMTQ1BYo15aGgZXHcsBWXyae8bVaAdgfLP'
   const spender = process.env.SUN_E2E_SPENDER || router
   const swapIn = process.env.SUN_E2E_SWAP_IN || 'TRX'
   const swapOut = process.env.SUN_E2E_SWAP_OUT || 'SUN'
@@ -126,7 +131,7 @@ function nileSteps(write: boolean): E2EStep[] {
     { name: 'swap quote sun trx', args: ['swap:quote', 'TRX', 'SUN', '1000000'] },
     {
       name: 'contract read',
-      args: ['contract', 'read', nileUsdt, 'decimals', '--args', '[]'],
+      args: ['contract', 'read', nileUsdt, 'decimals', '--args', '[]', '--abi', TRC20_DECIMALS_ABI],
     },
     {
       name: 'approve dry-run',
@@ -161,9 +166,9 @@ function nileSteps(write: boolean): E2EStep[] {
         '--token-b',
         v2TokenB,
         '--amount-a',
-        '1',
+        process.env.SUN_E2E_V2_AMOUNT_A || '10000',
         '--amount-b',
-        '1',
+        process.env.SUN_E2E_V2_AMOUNT_B || '326000000000000000',
       ],
       requiresWallet: true,
       write: true,
@@ -286,11 +291,21 @@ function nileSteps(write: boolean): E2EStep[] {
     },
     {
       name: 'v4 info',
-      args: ['liquidity', 'v4:info', '--pm', pm, '--token-id', tokenId],
+      args: ['liquidity', 'v4:info', '--pm', v4Pm, '--token-id', tokenId],
     },
     {
       name: 'contract send dry-run',
-      args: ['--dry-run', 'contract', 'send', nileUsdt, 'approve', '--args', `["${spender}","1"]`],
+      args: [
+        '--dry-run',
+        'contract',
+        'send',
+        nileUsdt,
+        'approve',
+        '--args',
+        `["${spender}","1"]`,
+        '--abi',
+        TRC20_APPROVE_ABI,
+      ],
       requiresWallet: true,
       write: true,
     },
@@ -333,9 +348,25 @@ function nileSteps(write: boolean): E2EStep[] {
         '--token-b',
         v2TokenB,
         '--amount-a',
-        process.env.SUN_E2E_V2_AMOUNT_A || '1',
+        process.env.SUN_E2E_V2_AMOUNT_A || '10000',
         '--amount-b',
-        process.env.SUN_E2E_V2_AMOUNT_B || '1',
+        process.env.SUN_E2E_V2_AMOUNT_B || '326000000000000000',
+      ],
+      requiresWallet: true,
+      write: true,
+    },
+    {
+      name: 'v2 remove write',
+      args: [
+        '--yes',
+        'liquidity',
+        'v2:remove',
+        '--token-a',
+        v2TokenA,
+        '--token-b',
+        v2TokenB,
+        '--liquidity',
+        process.env.SUN_E2E_V2_REMOVE_LIQUIDITY || liquidity,
       ],
       requiresWallet: true,
       write: true,
@@ -344,11 +375,11 @@ function nileSteps(write: boolean): E2EStep[] {
 }
 
 export function registerE2ECommands(program: Command) {
-  const e2e = program.command('e2e').description('End-to-end self-tests for sun-cli + sun-kit')
+  const e2e = program.command('e2e').description('End-to-end self-tests for sun-cli + sun-sdk')
 
   e2e
     .command('nile')
-    .description('Run Nile E2E checks across core SunKit-backed CLI features')
+    .description('Run Nile E2E checks across core sun-sdk-backed CLI features')
     .option('--write', 'Run real write transactions in addition to read and dry-run checks', false)
     .option('--timeout <ms>', 'Per-step timeout in milliseconds', '30000')
     .option('--no-json-children', 'Do not force child commands to use JSON output')

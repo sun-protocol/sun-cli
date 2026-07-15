@@ -65,7 +65,7 @@ describe('command registration', () => {
     expect(names).toContain('e2e')
   })
 
-  it('registers token subcommands including allowance', () => {
+  it('registers token subcommands including approve', () => {
     registerTokenCommands(program)
     const subs = getSubcommandNames(program, 'token')
     expect(subs).toContain('list')

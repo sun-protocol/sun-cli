@@ -3,7 +3,7 @@ import { getNetwork } from '../lib/context'
 import { writeAction, readAction } from '../lib/command'
 import { isJsonMode, output, outputError, withSpinner } from '../lib/output'
 import { resolveTokenAddress, getSymbolOrAddress } from '../lib/tokens'
-import { readContractByAbi, sendContractByAbi } from '@sun-sdk/runtime'
+import { readContractByAbi, sendContractByAbi } from '../lib/sdk/runtime-compat'
 import { toCliTxResult } from '../lib/sdk/compat'
 
 const ROUTER_API: Record<string, string> = {

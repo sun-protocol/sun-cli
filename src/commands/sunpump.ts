@@ -35,7 +35,7 @@ interface PumpActionOpts<T> {
 }
 
 function getSunPumpApi(): SunPumpApiClient {
-  return new SunPumpApiClient({ network: getNetwork() as any })
+  return new SunPumpApiClient()
 }
 
 async function pumpAction<T>(opts: PumpActionOpts<T>): Promise<void> {

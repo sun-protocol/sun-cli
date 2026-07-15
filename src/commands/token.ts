@@ -1,6 +1,10 @@
 import { Command } from 'commander'
-import { readApiAction } from '../lib/command'
+import { createApproveAction } from '@sun-sdk/core'
+import { readApiAction, writeAction } from '../lib/command'
+import { getNetwork } from '../lib/context'
 import { formatUsd } from '../lib/output'
+import { getSymbolOrAddress, resolveTokenAddress } from '../lib/tokens'
+import { toCliTxResult } from '../lib/sdk/compat'
 
 export function registerTokenCommands(program: Command) {
   const token = program.command('token').description('Token lookup and search')
@@ -70,6 +74,43 @@ export function registerTokenCommands(program: Command) {
             formatUsd(item.priceInUsd ?? item.price ?? item.tokenPriceUsd),
           ],
         },
+      })
+    })
+
+  token
+    .command('approve')
+    .description('Approve a spender for a TRC20 token')
+    .requiredOption('--token <token>', 'Token symbol or contract address')
+    .requiredOption('--spender <address>', 'Spender address')
+    .requiredOption('--amount <baseUnits>', 'Allowance amount in token base units')
+    .option('--fee-limit <sun>', 'Fee limit in Sun')
+    .action(async (opts) => {
+      const network = getNetwork()
+      const tokenAddress = resolveTokenAddress(opts.token, network)
+      const tokenDisplay = getSymbolOrAddress(tokenAddress, network)
+      await writeAction({
+        title: 'Approve Token',
+        summary: {
+          Token: `${tokenDisplay} (${tokenAddress})`,
+          Spender: opts.spender,
+          Amount: opts.amount,
+          Network: network,
+        },
+        confirmMsg: 'Approve this allowance?',
+        spinnerLabel: 'Approving token...',
+        errorLabel: 'Approve failed',
+        execute: (sdk) =>
+          sdk.runtime
+            .sendAction(
+              createApproveAction({
+                id: `approve-${Date.now()}`,
+                target: tokenAddress as never,
+                spender: opts.spender,
+                amount: opts.amount,
+                ...(opts.feeLimit !== undefined ? { feeLimit: parseInt(opts.feeLimit) } : {}),
+              }),
+            )
+            .then(toCliTxResult),
       })
     })
 }

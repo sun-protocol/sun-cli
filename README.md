@@ -362,7 +362,7 @@ sun contract send <contractAddress> transfer  --args '["TRecipient","1000000"]' 
 Access to SunPump — read-only API for discovery (token launches, trending lists,
 holder portfolios), token creation via the agent endpoint (`launch`), and
 on-chain trade commands (`buy`/`sell`/`quote-buy`/`quote-sell`/`state`) that talk
-to the bonding-curve contract through `sun-kit`. Read-only API calls and `launch`
+to the bonding-curve contract through `@sun-sdk/*`. Read-only API calls and `launch`
 need no wallet; trade commands do.
 
 SunPump is **mainnet only** — both the API host (`https://api-v2.sunpump.meme/pump-api`)
@@ -422,7 +422,7 @@ Endpoints requiring a signed message (`favors`) accept `--user-address`,
 
 ### Nile E2E Self-Test
 
-Run CLI-level self-tests against Nile to verify `sun-cli` is wired to `sun-kit`
+Run CLI-level self-tests against Nile to verify `sun-cli` is wired to `sun-sdk`
 core functions:
 
 ```bash
@@ -442,21 +442,22 @@ sun e2e nile --write
 `--write` adds real Nile transactions for the small configurable write set. Use a
 funded Nile test wallet and keep amounts tiny. Optional environment variables:
 
-| Variable              | Purpose                                      | Default |
-| --------------------- | -------------------------------------------- | ------- |
-| `SUN_E2E_OWNER`       | Owner address for owner-scoped checks        | wallet  |
-| `SUN_E2E_SPENDER`     | Spender used by `token approve`              | router  |
-| `SUN_E2E_TOKEN_ID`    | Position token id for position dry-runs      | `1`     |
-| `SUN_E2E_LIQUIDITY`   | Liquidity amount for remove/decrease checks  | `1`     |
-| `SUN_E2E_SWAP_IN`     | Token in for write swap                      | `TRX`   |
-| `SUN_E2E_SWAP_OUT`    | Token out for write swap                     | `SUN`   |
-| `SUN_E2E_SWAP_AMOUNT` | Raw token-in amount for write swap           | `1000000` |
-| `SUN_E2E_V2_TOKEN_A`  | Token A for V2 liquidity checks              | `TRX`   |
-| `SUN_E2E_V2_TOKEN_B`  | Token B for V2 liquidity checks              | `SUN`   |
-| `SUN_E2E_V2_AMOUNT_A` | Token A amount for write V2 add liquidity    | `1`     |
-| `SUN_E2E_V2_AMOUNT_B` | Token B amount for write V2 add liquidity    | `1`     |
-| `SUN_E2E_CL_TOKEN0`   | Token0 for V3/V4 concentrated liquidity dry-runs | `USDD` |
-| `SUN_E2E_CL_TOKEN1`   | Token1 for V3/V4 concentrated liquidity dry-runs | `USDT` |
+| Variable              | Purpose                                          | Default          |
+| --------------------- | ------------------------------------------------ | ---------------- |
+| `SUN_E2E_OWNER`       | Owner address for owner-scoped checks            | wallet           |
+| `SUN_E2E_SPENDER`     | Spender used by `token approve`                  | router           |
+| `SUN_E2E_TOKEN_ID`    | Position token id for position dry-runs          | `1`              |
+| `SUN_E2E_LIQUIDITY`   | Liquidity amount for remove/decrease checks      | `1`              |
+| `SUN_E2E_SWAP_IN`     | Token in for write swap                          | `TRX`            |
+| `SUN_E2E_SWAP_OUT`    | Token out for write swap                         | `SUN`            |
+| `SUN_E2E_SWAP_AMOUNT` | Raw token-in amount for write swap               | `1000000`        |
+| `SUN_E2E_V2_TOKEN_A`  | Token A for V2 liquidity checks                  | `TRX`            |
+| `SUN_E2E_V2_TOKEN_B`  | Token B for V2 liquidity checks                  | `SUN`            |
+| `SUN_E2E_V2_AMOUNT_A` | Token A amount for write V2 add liquidity        | `1`              |
+| `SUN_E2E_V2_AMOUNT_B` | Token B amount for write V2 add liquidity        | `1`              |
+| `SUN_E2E_CL_TOKEN0`   | Token0 for V3/V4 concentrated liquidity dry-runs | `USDD`           |
+| `SUN_E2E_CL_TOKEN1`   | Token1 for V3/V4 concentrated liquidity dry-runs | `USDT`           |
+| `SUN_E2E_V4_PM`       | V4 position manager used by `v4:info`            | Nile SDK default |
 
 ---
 

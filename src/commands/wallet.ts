@@ -3,7 +3,7 @@ import { getNetwork } from '../lib/context'
 import { readAction } from '../lib/command'
 import { getWalletAddress, initWallet } from '../lib/wallet'
 import { output, outputError } from '../lib/output'
-import { readBalances } from '@sun-sdk/runtime'
+import { readBalances } from '../lib/sdk/runtime-compat'
 
 export function registerWalletCommands(program: Command) {
   const wallet = program.command('wallet').description('Wallet management')
@@ -43,7 +43,7 @@ export function registerWalletCommands(program: Command) {
             owner,
             tokens: tokenList,
           })
-          return balances.map((item) => ({
+          return balances.map((item: any) => ({
             type: String(item.token).toUpperCase() === 'TRX' ? 'TRX' : 'TRC20',
             tokenAddress: String(item.token).toUpperCase() === 'TRX' ? undefined : item.token,
             balance: item.balance,

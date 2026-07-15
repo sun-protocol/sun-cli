@@ -54,14 +54,18 @@ describe('wallet', () => {
     }
 
     const resolveWalletProvider = jest.fn().mockReturnValue(provider)
-    const createReadonlyTronWeb = jest.fn().mockResolvedValue(tronWeb)
+    const AgentWalletSdkAdapter = jest.fn().mockImplementation((wallet) => ({
+      kind: 'mock-sdk-wallet',
+      wallet,
+      getAddress: wallet.getAddress,
+    }))
 
     jest.doMock('@bankofai/agent-wallet', () => ({
       resolveWalletProvider,
     }))
 
-    jest.doMock('@sun-protocol/sun-kit', () => ({
-      createReadonlyTronWeb,
+    jest.doMock('../../src/lib/sdk/wallet', () => ({
+      AgentWalletSdkAdapter,
     }))
 
     const walletModule = require('../../src/lib/wallet')
@@ -71,7 +75,7 @@ describe('wallet', () => {
       tronWeb,
       provider,
       resolveWalletProvider,
-      createReadonlyTronWeb,
+      AgentWalletSdkAdapter,
     }
   }
 
@@ -119,26 +123,23 @@ describe('wallet', () => {
   it('builds tronWeb with the active wallet as default address', async () => {
     process.env.AGENT_WALLET_PASSWORD = 'secret'
 
-    const { walletModule, tronWeb, createReadonlyTronWeb } = loadWalletModule()
+    const { walletModule, activeWallet, AgentWalletSdkAdapter } = loadWalletModule()
 
     await walletModule.initWallet()
     const wallet = walletModule.getWallet() as any
-    const resolvedTronWeb = await wallet.getTronWeb('nile')
 
-    expect(createReadonlyTronWeb).toHaveBeenCalledWith('nile')
-    expect(resolvedTronWeb).toBe(tronWeb)
-    expect(tronWeb.address.toHex).toHaveBeenCalledWith('TWalletAddress')
-    expect(tronWeb.address.fromHex).toHaveBeenCalledWith('41abc')
-    expect((tronWeb as any).defaultAddress).toEqual({
-      hex: '41abc',
-      base58: 'TWalletAddress',
+    expect(AgentWalletSdkAdapter).toHaveBeenCalledWith(activeWallet)
+    expect(wallet).toEqual({
+      kind: 'mock-sdk-wallet',
+      wallet: activeWallet,
+      getAddress: activeWallet.getAddress,
     })
   })
 
-  it('signs, broadcasts, and normalizes typed-data signatures', async () => {
+  it('passes the active wallet to the SDK adapter', async () => {
     process.env.AGENT_WALLET_PASSWORD = 'secret'
 
-    const { walletModule, activeWallet, tronWeb } = loadWalletModule({
+    const { walletModule, activeWallet, AgentWalletSdkAdapter } = loadWalletModule({
       activeWallet: {
         getAddress: jest.fn().mockResolvedValue('TWalletAddress'),
         signTransaction: jest.fn().mockResolvedValue('{"txID":"signed","raw_data":{"x":1}}'),
@@ -157,37 +158,8 @@ describe('wallet', () => {
     })
 
     await walletModule.initWallet()
-    const wallet = walletModule.getWallet() as any
+    walletModule.getWallet()
 
-    await expect(
-      wallet.signAndBroadcast({ transaction: { raw_data: { contract: [] } } }, 'mainnet'),
-    ).resolves.toEqual({ result: true, txid: 'tx-999' })
-    expect(activeWallet.signTransaction).toHaveBeenCalledWith({ raw_data: { contract: [] } })
-    expect(tronWeb.trx.sendRawTransaction).toHaveBeenCalledWith({
-      txID: 'signed',
-      raw_data: { x: 1 },
-    })
-
-    await expect(
-      wallet.signTypedData(
-        'Permit',
-        { name: 'Sun', chainId: 1, verifyingContract: 'TContract' },
-        { Permit: [{ name: 'owner', type: 'address' }] },
-        { owner: 'TWalletAddress' },
-      ),
-    ).resolves.toBe('deadbeef')
-    expect(activeWallet.signTypedData).toHaveBeenCalledWith({
-      domain: { name: 'Sun', chainId: 1, verifyingContract: 'TContract' },
-      types: {
-        EIP712Domain: [
-          { name: 'name', type: 'string' },
-          { name: 'chainId', type: 'uint256' },
-          { name: 'verifyingContract', type: 'address' },
-        ],
-        Permit: [{ name: 'owner', type: 'address' }],
-      },
-      primaryType: 'Permit',
-      message: { owner: 'TWalletAddress' },
-    })
+    expect(AgentWalletSdkAdapter).toHaveBeenCalledWith(activeWallet)
   })
 })

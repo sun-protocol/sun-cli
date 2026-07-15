@@ -4,7 +4,13 @@ import { writeAction, readAction } from '../lib/command'
 import { withSpinner } from '../lib/output'
 import { resolveTokenAddress, getSymbolOrAddress } from '../lib/tokens'
 import { getContractAddress } from '@sun-sdk/chains'
-import type { Network } from '@sun-sdk/core'
+import { createApproveAction, type Network } from '@sun-sdk/core'
+import {
+  buildV2AddLiquidityAction,
+  buildV2AddLiquidityEthAction,
+  buildV2RemoveLiquidityAction,
+  buildV2RemoveLiquidityEthAction,
+} from '@sun-sdk/sunswap-v2'
 import { TRX_ADDRESS, WTRX_MAINNET, WTRX_NILE } from '../lib/sdk/constants'
 import { createReadonlyTronWeb } from '../lib/sdk/factory'
 import { toCliTxResult } from '../lib/sdk/compat'
@@ -92,10 +98,19 @@ function getLookupToken(token: string, network: string): string {
   return token === TRX_ADDRESS ? getWTRX(network) : token
 }
 
+function defaultDeadline(): string {
+  return Math.floor(Date.now() / 1000 + 20 * 60).toString()
+}
+
+function tokenRef(address: string) {
+  return { address } as never
+}
+
 interface PairReserves {
   reserveA: string
   reserveB: string
   pairExists: boolean
+  pairAddress?: string
 }
 
 async function getV2PairReserves(
@@ -129,7 +144,7 @@ async function getV2PairReserves(
   const reserveA = token0 === lookupA ? reserve0 : reserve1
   const reserveB = token0 === lookupB ? reserve0 : reserve1
 
-  return { reserveA, reserveB, pairExists: true }
+  return { reserveA, reserveB, pairExists: true, pairAddress: pairBase58 }
 }
 
 function calculateOptimalAmount(
@@ -233,20 +248,87 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Add V2 liquidity?',
         spinnerLabel: 'Adding V2 liquidity...',
         errorLabel: 'V2 add liquidity failed',
-        execute: (sdk) =>
-          sdk.liquidity.v2.add
-            .execute({
-              contracts: withContracts({ sunswapV2Router: router }),
-              tokenA,
-              tokenB,
+        execute: async (sdk) => {
+          const recipient = opts.to || (await sdk.runtime.getAddress())
+          if (!recipient) {
+            throw new Error(
+              'Wallet required. Set agent-wallet credentials before running this command.',
+            )
+          }
+          const deadline = opts.deadline || defaultDeadline()
+          const txids: string[] = []
+
+          if (tokenA === TRX_ADDRESS || tokenB === TRX_ADDRESS) {
+            const token = tokenA === TRX_ADDRESS ? tokenB : tokenA
+            const amountTokenDesired = tokenA === TRX_ADDRESS ? amountB : amountA
+            const amountEthDesired = tokenA === TRX_ADDRESS ? amountA : amountB
+            const amountTokenMin = tokenA === TRX_ADDRESS ? opts.minB || '0' : opts.minA || '0'
+            const amountEthMin = tokenA === TRX_ADDRESS ? opts.minA || '0' : opts.minB || '0'
+
+            const approval = await sdk.runtime.sendAction(
+              createApproveAction({
+                id: `v2-add-approve-${Date.now()}`,
+                target: token as never,
+                spender: router,
+                amount: amountTokenDesired,
+              }),
+            )
+            txids.push(approval.txid)
+
+            const result = await sdk.runtime.sendAction(
+              buildV2AddLiquidityEthAction({
+                network: assertSdkNetwork(network),
+                router: router as never,
+                token: tokenRef(token),
+                amountTokenDesired,
+                amountEthDesired,
+                amountTokenMin,
+                amountEthMin,
+                recipient,
+                deadline,
+              }),
+            )
+            txids.push(result.txid)
+            return { txid: result.txid, txids, raw: result }
+          }
+
+          const [approvalA, approvalB] = await Promise.all([
+            sdk.runtime.sendAction(
+              createApproveAction({
+                id: `v2-add-approve-a-${Date.now()}`,
+                target: tokenA as never,
+                spender: router,
+                amount: amountA,
+              }),
+            ),
+            sdk.runtime.sendAction(
+              createApproveAction({
+                id: `v2-add-approve-b-${Date.now()}`,
+                target: tokenB as never,
+                spender: router,
+                amount: amountB,
+              }),
+            ),
+          ])
+          txids.push(approvalA.txid, approvalB.txid)
+
+          const result = await sdk.runtime.sendAction(
+            buildV2AddLiquidityAction({
+              network: assertSdkNetwork(network),
+              router: router as never,
+              tokenA: tokenRef(tokenA),
+              tokenB: tokenRef(tokenB),
               amountADesired: amountA,
               amountBDesired: amountB,
-              amountAMin: opts.minA,
-              amountBMin: opts.minB,
-              recipient: opts.to,
-              deadline: opts.deadline,
-            })
-            .then(mapTx),
+              amountAMin: opts.minA || '0',
+              amountBMin: opts.minB || '0',
+              recipient,
+              deadline,
+            }),
+          )
+          txids.push(result.txid)
+          return { txid: result.txid, txids, raw: result }
+        },
       })
     })
 
@@ -291,19 +373,62 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Remove V2 liquidity?',
         spinnerLabel: 'Removing V2 liquidity...',
         errorLabel: 'V2 remove liquidity failed',
-        execute: (sdk) =>
-          sdk.liquidity.v2.remove
-            .execute({
-              contracts: withContracts({ sunswapV2Router: router }),
-              tokenA,
-              tokenB,
+        execute: async (sdk) => {
+          const recipient = opts.to || (await sdk.runtime.getAddress())
+          if (!recipient) {
+            throw new Error('Wallet required. Set agent-wallet credentials before running this command.')
+          }
+          const pair = await getV2PairReserves(network, tokenA, tokenB)
+          if (!pair.pairAddress) throw new Error('V2 pair does not exist')
+          const deadline = opts.deadline || defaultDeadline()
+          const txids: string[] = []
+
+          const approval = await sdk.runtime.sendAction(
+            createApproveAction({
+              id: `v2-remove-approve-${Date.now()}`,
+              target: pair.pairAddress as never,
+              spender: router,
+              amount: opts.liquidity,
+            }),
+          )
+          txids.push(approval.txid)
+
+          if (tokenA === TRX_ADDRESS || tokenB === TRX_ADDRESS) {
+            const token = tokenA === TRX_ADDRESS ? tokenB : tokenA
+            const amountTokenMin = tokenA === TRX_ADDRESS ? opts.minB || '0' : opts.minA || '0'
+            const amountEthMin = tokenA === TRX_ADDRESS ? opts.minA || '0' : opts.minB || '0'
+            const result = await sdk.runtime.sendAction(
+              buildV2RemoveLiquidityEthAction({
+                network: assertSdkNetwork(network),
+                router: router as never,
+                token: tokenRef(token),
+                liquidity: opts.liquidity,
+                amountTokenMin,
+                amountEthMin,
+                recipient,
+                deadline,
+              }),
+            )
+            txids.push(result.txid)
+            return { txid: result.txid, txids, raw: result }
+          }
+
+          const result = await sdk.runtime.sendAction(
+            buildV2RemoveLiquidityAction({
+              network: assertSdkNetwork(network),
+              router: router as never,
+              tokenA: tokenRef(tokenA),
+              tokenB: tokenRef(tokenB),
               liquidity: opts.liquidity,
-              amountAMin: opts.minA,
-              amountBMin: opts.minB,
-              recipient: opts.to,
-              deadline: opts.deadline,
-            } as any)
-            .then(mapTx),
+              amountAMin: opts.minA || '0',
+              amountBMin: opts.minB || '0',
+              recipient,
+              deadline,
+            }),
+          )
+          txids.push(result.txid)
+          return { txid: result.txid, txids, raw: result }
+        },
       })
     })
 

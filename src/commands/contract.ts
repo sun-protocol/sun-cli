@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import { getNetwork } from '../lib/context'
 import { writeAction, readAction } from '../lib/command'
-import { readContractByAbi, sendContractByAbi } from '@sun-sdk/runtime'
+import { readContractByAbi, sendContractByAbi } from '../lib/sdk/runtime-compat'
 import { toCliTxResult } from '../lib/sdk/compat'
 
 function parseAbi(value: string | undefined): any[] {
