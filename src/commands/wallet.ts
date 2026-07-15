@@ -3,27 +3,7 @@ import { getNetwork } from '../lib/context'
 import { readAction } from '../lib/command'
 import { getWalletAddress, initWallet } from '../lib/wallet'
 import { output, outputError } from '../lib/output'
-import { resolveTokenAddress } from '../lib/tokens'
-
-export interface BalanceTokenInput {
-  address: string
-  type: 'TRX' | 'TRC20'
-  tokenAddress?: string
-}
-
-export function buildBalanceTokenList(tokens: string, owner: string | undefined, network: string): BalanceTokenInput[] {
-  return tokens.split(',').map((t: string) => {
-    const trimmed = t.trim()
-    if (trimmed.toUpperCase() === 'TRX') {
-      return { address: owner || '', type: 'TRX' as const }
-    }
-    return {
-      address: owner || '',
-      type: 'TRC20' as const,
-      tokenAddress: resolveTokenAddress(trimmed, network),
-    }
-  })
-}
+import { readBalances } from '@sun-sdk/runtime'
 
 export function registerWalletCommands(program: Command) {
   const wallet = program.command('wallet').description('Wallet management')
@@ -48,18 +28,28 @@ export function registerWalletCommands(program: Command) {
     .option('--owner <address>', 'Wallet address (default: active wallet)')
     .option('--tokens <tokens>', 'Comma-separated: TRX,<TRC20_ADDRESS>,...', 'TRX')
     .action(async (opts) => {
-      const network = getNetwork()
-      const tokenList = buildBalanceTokenList(opts.tokens, opts.owner, network)
+      const tokenList = opts.tokens.split(',').map((t: string) => t.trim())
 
       await readAction({
         spinnerLabel: 'Fetching balances...',
         errorLabel: 'Failed to get balances',
-        execute: (kit) =>
-          kit.getBalances({
-            network,
-            ownerAddress: opts.owner,
+        execute: async (sdk) => {
+          const owner = opts.owner || (await sdk.runtime.getAddress())
+          if (!owner)
+            throw new Error(
+              'Wallet required. Set agent-wallet credentials before running this command.',
+            )
+          const balances = await readBalances(sdk.runtime, {
+            owner,
             tokens: tokenList,
-          }),
+          })
+          return balances.map((item) => ({
+            type: String(item.token).toUpperCase() === 'TRX' ? 'TRX' : 'TRC20',
+            tokenAddress: String(item.token).toUpperCase() === 'TRX' ? undefined : item.token,
+            balance: item.balance,
+            decimals: item.decimals,
+          }))
+        },
         tableConfig: {
           headers: ['Type', 'Token Address', 'Balance'],
           toRow: (item: any) => [item.type, item.tokenAddress || 'TRX (native)', item.balance],

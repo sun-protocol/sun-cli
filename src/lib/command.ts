@@ -2,7 +2,6 @@
  * Command helpers — eliminate boilerplate in write/read command handlers.
  */
 
-import type { SunKit, SunAPI } from '@sun-protocol/sun-kit'
 import { getKit, getApi, ensureWallet } from './context'
 import {
   output,
@@ -167,7 +166,7 @@ export function parseApiResponse<T = unknown>(
 // writeAction — for state-changing commands (swap, liquidity, contract:send)
 // ---------------------------------------------------------------------------
 
-export interface WriteActionOpts<T> {
+export interface WriteActionOpts<T = any> {
   /** Title shown in the pre-execution summary */
   title: string
   /** Key-value pairs displayed in summary */
@@ -177,7 +176,7 @@ export interface WriteActionOpts<T> {
   /** Spinner label during execution */
   spinnerLabel: string
   /** The async operation that calls kit methods */
-  execute: (kit: SunKit) => Promise<T>
+  execute: (kit: any) => Promise<T>
   /** Error label prefix for outputError */
   errorLabel: string
   /** Optional post-success callback (e.g. extra human-friendly output) */
@@ -227,14 +226,14 @@ export async function writeAction<T>(opts: WriteActionOpts<T>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// readAction — for read commands that need SunKit (balances, contract:read)
+// readAction — for read commands that need the protocol SDK runtime (balances, contract:read)
 // ---------------------------------------------------------------------------
 
-export interface ReadActionOpts<T> {
+export interface ReadActionOpts<T = any> {
   /** Spinner label */
   spinnerLabel: string
   /** The async operation */
-  execute: (kit: SunKit) => Promise<T>
+  execute: (kit: any) => Promise<T>
   /** Table config for human-readable output */
   tableConfig?: { headers: string[]; toRow: (item: any) => string[] }
   /** Error label prefix */
@@ -256,14 +255,14 @@ export async function readAction<T>(opts: ReadActionOpts<T>): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// readApiAction — for read commands using SunAPI only (no wallet init)
+// readApiAction — for read commands using the SUN API client only (no wallet init)
 // ---------------------------------------------------------------------------
 
-export interface ReadApiActionOpts<T> {
+export interface ReadApiActionOpts<T = any> {
   /** Spinner label */
   spinnerLabel: string
   /** The async operation */
-  execute: (api: SunAPI) => Promise<T>
+  execute: (api: any) => Promise<T>
   /** Table config for human-readable output */
   tableConfig?: { headers: string[]; toRow: (item: any) => string[] }
   /** Error label prefix */

@@ -3,7 +3,7 @@ import { getNetwork } from '../lib/context'
 import { readApiAction } from '../lib/command'
 import { formatUsd, formatPct, formatTime } from '../lib/output'
 import { tryResolveTokenAddress } from '../lib/tokens'
-import { TRX_ADDRESS, WTRX_MAINNET, WTRX_NILE } from '@sun-protocol/sun-kit'
+import { TRX_ADDRESS, WTRX_MAINNET, WTRX_NILE } from '../lib/sdk/constants'
 
 function resolveTokenForPoolQuery(input: string | undefined, network: string): string | undefined {
   if (!input) return undefined

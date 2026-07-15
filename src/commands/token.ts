@@ -1,8 +1,6 @@
 import { Command } from 'commander'
-import { readApiAction, writeAction } from '../lib/command'
+import { readApiAction } from '../lib/command'
 import { formatUsd } from '../lib/output'
-import { getNetwork } from '../lib/context'
-import { resolveTokenAddress, getSymbolOrAddress } from '../lib/tokens'
 
 export function registerTokenCommands(program: Command) {
   const token = program.command('token').description('Token lookup and search')
@@ -71,52 +69,6 @@ export function registerTokenCommands(program: Command) {
             formatUsd(item.volume24h ?? item.vol24h ?? item.volumeUsd1d),
             formatUsd(item.priceInUsd ?? item.price ?? item.tokenPriceUsd),
           ],
-        },
-      })
-    })
-
-  token
-    .command('approve')
-    .description('Ensure a TRC20 allowance for a spender')
-    .requiredOption('--token <tokenOrAddress>', 'Token symbol or address')
-    .requiredOption('--spender <address>', 'Spender address')
-    .requiredOption('--amount <raw>', 'Required allowance in raw token units')
-    .action(async (opts) => {
-      const network = getNetwork()
-      let tokenAddress: string
-      try {
-        tokenAddress = resolveTokenAddress(opts.token, network)
-      } catch (err: any) {
-        console.error(err.message)
-        process.exitCode = 1
-        return
-      }
-
-      await writeAction({
-        title: 'Token Allowance',
-        summary: {
-          Token: `${getSymbolOrAddress(tokenAddress, network)} (${tokenAddress})`,
-          Spender: opts.spender,
-          Amount: opts.amount,
-          Network: network,
-        },
-        confirmMsg: 'Ensure this token allowance?',
-        spinnerLabel: 'Checking allowance...',
-        errorLabel: 'Approve failed',
-        execute: async (kit) => {
-          await kit.ensureTokenAllowance({
-            network,
-            tokenAddress,
-            spender: opts.spender,
-            requiredAmount: opts.amount,
-          })
-          return {
-            tokenAddress,
-            spender: opts.spender,
-            requiredAmount: opts.amount,
-            network,
-            ok: true,
-          }
         },
       })
     })
