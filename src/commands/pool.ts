@@ -105,6 +105,7 @@ export function registerPoolCommands(program: Command) {
         errorLabel: 'Failed to fetch top APY pools',
         execute: (api) =>
           api.getTopApyPoolList({
+            protocol: opts.protocol,
             pageNo: parseInt(opts.page),
             pageSize: parseInt(opts.pageSize),
           }),

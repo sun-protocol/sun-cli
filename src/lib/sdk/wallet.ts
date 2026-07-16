@@ -31,7 +31,9 @@ export class AgentWalletSdkAdapter implements WalletAdapter {
   }
 
   async signTypedData(payload: TypedDataPayload): Promise<string> {
-    const sig = await (this.agentWallet as unknown as Eip712Capable).signTypedData(payload as any)
+    const sig = await (this.agentWallet as unknown as Eip712Capable).signTypedData(
+      payload as unknown as Record<string, unknown>,
+    )
     return sig.startsWith('0x') ? sig.slice(2) : sig
   }
 }

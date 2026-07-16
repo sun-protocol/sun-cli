@@ -286,11 +286,16 @@ async function getV3PoolState(
   const lookupA = getLookupToken(tokenA, network)
   const lookupB = getLookupToken(tokenB, network)
 
-  const poolHex = await triggerConstant(tronWeb, factoryAddress, 'getPool(address,address,uint24)', [
-    { type: 'address', value: lookupA },
-    { type: 'address', value: lookupB },
-    { type: 'uint24', value: fee },
-  ])
+  const poolHex = await triggerConstant(
+    tronWeb,
+    factoryAddress,
+    'getPool(address,address,uint24)',
+    [
+      { type: 'address', value: lookupA },
+      { type: 'address', value: lookupB },
+      { type: 'uint24', value: fee },
+    ],
+  )
   const poolAddress = wordToAddress(tronWeb, poolHex)
   const zeroBase58 = tronWeb.address.fromHex('410000000000000000000000000000000000000000')
 
@@ -561,7 +566,9 @@ export function registerLiquidityCommands(program: Command) {
         execute: async (sdk) => {
           const recipient = opts.to || (await sdk.runtime.getAddress())
           if (!recipient) {
-            throw new Error('Wallet required. Set agent-wallet credentials before running this command.')
+            throw new Error(
+              'Wallet required. Set agent-wallet credentials before running this command.',
+            )
           }
           const pair = await getV2PairReserves(network, tokenA, tokenB)
           if (!pair.pairAddress) throw new Error('V2 pair does not exist')
@@ -992,7 +999,9 @@ export function registerLiquidityCommands(program: Command) {
           Fee: opts.fee || '3000 (default)',
           Hooks: opts.hooks || TRX_ADDRESS,
           'Tick Range':
-            opts.tickLower && opts.tickUpper ? `[${opts.tickLower}, ${opts.tickUpper}]` : '[-120, 120]',
+            opts.tickLower && opts.tickUpper
+              ? `[${opts.tickLower}, ${opts.tickUpper}]`
+              : '[-120, 120]',
           Liquidity: opts.liquidity || '(required for write)',
           'Amount0 Max': opts.amount0Max || opts.amount0 || '0',
           'Amount1 Max': opts.amount1Max || opts.amount1 || '0',
