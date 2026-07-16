@@ -10,6 +10,7 @@ import {
   buildV2AddLiquidityEthAction,
   buildV2RemoveLiquidityAction,
   buildV2RemoveLiquidityEthAction,
+  tronAddressToEvmHex,
 } from '@sun-sdk/sunswap-v2'
 import { TRX_ADDRESS, WTRX_MAINNET, WTRX_NILE } from '../lib/sdk/constants'
 import { createReadonlyTronWeb } from '../lib/sdk/factory'
@@ -157,8 +158,8 @@ function defaultDeadline(): string {
   return Math.floor(Date.now() / 1000 + 20 * 60).toString()
 }
 
-function tokenRef(address: string) {
-  return { address } as never
+export function toV2TokenRef(address: string) {
+  return { address: `0x${tronAddressToEvmHex(address)}` } as never
 }
 
 function createV4PoolKey(input: {
@@ -464,12 +465,13 @@ export function registerLiquidityCommands(program: Command) {
               }),
             )
             txids.push(approval.txid)
+            await sdk.runtime.waitForTransactionReceipt?.(approval.txid)
 
             const result = await sdk.runtime.sendAction(
               buildV2AddLiquidityEthAction({
                 network: assertSdkNetwork(network),
                 router: router as never,
-                token: tokenRef(token),
+                token: toV2TokenRef(token),
                 amountTokenDesired,
                 amountEthDesired,
                 amountTokenMin,
@@ -501,13 +503,19 @@ export function registerLiquidityCommands(program: Command) {
             ),
           ])
           txids.push(approvalA.txid, approvalB.txid)
+          if (sdk.runtime.waitForTransactionReceipt) {
+            await Promise.all([
+              sdk.runtime.waitForTransactionReceipt(approvalA.txid),
+              sdk.runtime.waitForTransactionReceipt(approvalB.txid),
+            ])
+          }
 
           const result = await sdk.runtime.sendAction(
             buildV2AddLiquidityAction({
               network: assertSdkNetwork(network),
               router: router as never,
-              tokenA: tokenRef(tokenA),
-              tokenB: tokenRef(tokenB),
+              tokenA: toV2TokenRef(tokenA),
+              tokenB: toV2TokenRef(tokenB),
               amountADesired: amountA,
               amountBDesired: amountB,
               amountAMin: opts.minA || '0',
@@ -584,6 +592,7 @@ export function registerLiquidityCommands(program: Command) {
             }),
           )
           txids.push(approval.txid)
+          await sdk.runtime.waitForTransactionReceipt?.(approval.txid)
 
           if (tokenA === TRX_ADDRESS || tokenB === TRX_ADDRESS) {
             const token = tokenA === TRX_ADDRESS ? tokenB : tokenA
@@ -593,7 +602,7 @@ export function registerLiquidityCommands(program: Command) {
               buildV2RemoveLiquidityEthAction({
                 network: assertSdkNetwork(network),
                 router: router as never,
-                token: tokenRef(token),
+                token: toV2TokenRef(token),
                 liquidity: opts.liquidity,
                 amountTokenMin,
                 amountEthMin,
@@ -609,8 +618,8 @@ export function registerLiquidityCommands(program: Command) {
             buildV2RemoveLiquidityAction({
               network: assertSdkNetwork(network),
               router: router as never,
-              tokenA: tokenRef(tokenA),
-              tokenB: tokenRef(tokenB),
+              tokenA: toV2TokenRef(tokenA),
+              tokenB: toV2TokenRef(tokenB),
               liquidity: opts.liquidity,
               amountAMin: opts.minA || '0',
               amountBMin: opts.minB || '0',

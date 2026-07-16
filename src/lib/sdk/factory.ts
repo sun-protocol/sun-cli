@@ -14,7 +14,10 @@ export interface SdkRuntimeOptions {
   wallet?: WalletAdapter
   tronGridApiKey?: string
   rpcUrl?: string
+  receiptTimeoutMs?: number
 }
+
+const DEFAULT_RECEIPT_TIMEOUT_MS = 120_000
 
 export function getNetworkFromEnv(env: NodeJS.ProcessEnv = process.env): Network {
   const network = env.TRON_NETWORK || 'mainnet'
@@ -46,10 +49,22 @@ export async function createSdkRuntime(options: SdkRuntimeOptions = {}): Promise
   const { createTronWebProvider } = require('@sun-sdk/runtime/node') as {
     createTronWebProvider(input: { network: Network; tronWeb: TronWeb }): TronProvider
   }
-  const provider = createTronWebProvider({
+  const baseProvider = createTronWebProvider({
     network,
     tronWeb,
   })
+  const waitForTransactionReceipt = baseProvider.waitForTransactionReceipt
+  const provider: TronProvider = waitForTransactionReceipt
+    ? {
+        ...baseProvider,
+        waitForTransactionReceipt: (txid, waitOptions = {}) =>
+          waitForTransactionReceipt(txid, {
+            ...waitOptions,
+            timeoutMs:
+              waitOptions.timeoutMs ?? options.receiptTimeoutMs ?? DEFAULT_RECEIPT_TIMEOUT_MS,
+          }),
+      }
+    : baseProvider
   return createRuntime({
     network,
     provider,
