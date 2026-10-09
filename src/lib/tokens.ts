@@ -3,7 +3,7 @@
  * Provides a unified way to resolve token symbols to addresses across all commands.
  */
 
-import { TRX_ADDRESS, WTRX_MAINNET, WTRX_NILE } from '@sun-protocol/sun-kit'
+import { TRX_ADDRESS, WTRX_MAINNET, WTRX_NILE } from './sdk/constants'
 
 export interface TokenInfo {
   symbol: string

@@ -12,7 +12,8 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.x, 20.x, 22.x]
+        # The public SUN SDK requires Node.js 20 or newer.
+        node-version: [20.x, 22.x]
 
     steps:
       - name: Checkout repository
@@ -51,3 +52,6 @@ jobs:
 
       - name: TypeScript type check
         run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
