@@ -6,6 +6,15 @@ describe('liquidity SDK integration', () => {
     jest.clearAllMocks()
   })
 
+  it('unwraps TronWeb single-output address arrays', () => {
+    const { unwrapContractAddressResult } = require('../../src/commands/liquidity')
+    expect(unwrapContractAddressResult(['41abc'], 'getPair')).toBe('41abc')
+    expect(unwrapContractAddressResult({ pair: '41def' }, 'getPair')).toBe('41def')
+    expect(() => unwrapContractAddressResult([], 'getPair')).toThrow(
+      'getPair did not return an address',
+    )
+  })
+
   async function captureWriteAction(args: string[]) {
     jest.resetModules()
     const writeAction = jest.fn().mockResolvedValue(undefined)
@@ -99,6 +108,8 @@ describe('liquidity SDK integration', () => {
         tickLower: undefined,
         tickUpper: undefined,
         tickRangeWidth: 100,
+        tokenA: 'TYsbWxNnyTgsZaTFaue9hqpxkU3Fkco94a',
+        tokenB: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf',
         amount0: '200',
         amount1: '100',
         amount0Min: '22',
@@ -128,6 +139,7 @@ describe('liquidity SDK integration', () => {
         liquidity: '100',
         amount0Min: '11',
         amount1Min: '22',
+        collectFees: false,
       }),
     )
   })

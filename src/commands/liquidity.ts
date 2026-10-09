@@ -116,6 +116,26 @@ interface PairReserves {
   pairExists: boolean
 }
 
+export function unwrapContractAddressResult(result: unknown, label: string): string {
+  const value = Array.isArray(result)
+    ? result[0]
+    : result && typeof result === 'object'
+      ? Object.values(result as Record<string, unknown>)[0]
+      : result
+  if (typeof value !== 'string') throw new Error(`${label} did not return an address`)
+  return value
+}
+
+function toBase58ContractAddress(
+  tronWeb: ReturnType<typeof createReadonlyTronWeb>,
+  result: unknown,
+  label: string,
+): string {
+  const value = unwrapContractAddressResult(result, label)
+  if (value.startsWith('T')) return value
+  return tronWeb.address.fromHex(value.startsWith('0x') ? `41${value.slice(2)}` : value)
+}
+
 async function getV2PairReserves(
   network: string,
   tokenA: string,
@@ -128,8 +148,8 @@ async function getV2PairReserves(
   const lookupB = getLookupToken(tokenB, network)
 
   const factory = await tronWeb.contract(SUNSWAP_V2_FACTORY_MIN_ABI as any, factoryAddress)
-  const pairHex = await factory.getPair(lookupA, lookupB).call()
-  const pairBase58 = tronWeb.address.fromHex(pairHex)
+  const pairResult = await factory.getPair(lookupA, lookupB).call()
+  const pairBase58 = toBase58ContractAddress(tronWeb, pairResult, 'V2 factory getPair')
   const zeroBase58 = tronWeb.address.fromHex('410000000000000000000000000000000000000000')
 
   if (!pairBase58 || pairBase58 === zeroBase58) {
@@ -138,9 +158,9 @@ async function getV2PairReserves(
 
   const pair = await tronWeb.contract(SUNSWAP_V2_PAIR_MIN_ABI as any, pairBase58)
   const reserves = await pair.getReserves().call()
-  const token0Hex = await pair.token0().call()
+  const token0Result = await pair.token0().call()
 
-  const token0 = tronWeb.address.fromHex(token0Hex)
+  const token0 = toBase58ContractAddress(tronWeb, token0Result, 'V2 pair token0')
   const reserve0 = (reserves._reserve0 ?? reserves[0]).toString()
   const reserve1 = (reserves._reserve1 ?? reserves[1]).toString()
 
@@ -518,6 +538,7 @@ export function registerLiquidityCommands(program: Command) {
               liquidity: opts.liquidity,
               amount0Min: opts.min0,
               amount1Min: opts.min1,
+              collectFees: false,
               deadline: opts.deadline,
             })
             .then(mapTx),
