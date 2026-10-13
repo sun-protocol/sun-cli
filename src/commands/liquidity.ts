@@ -642,7 +642,7 @@ export function registerLiquidityCommands(program: Command) {
         summary: {
           Token0: `${token0Display}${token0Note} (${token0})`,
           Token1: `${token1Display}${token1Note} (${token1})`,
-          Fee: fee,
+          Fee: opts.fee || '3000 (default)',
           'Tick Range': `[${tickLower}, ${tickUpper}]`,
           Amount0: opts.amount0 || '(auto)',
           Amount1: opts.amount1 || '(auto)',
@@ -897,11 +897,14 @@ export function registerLiquidityCommands(program: Command) {
           }),
         transform: (result: any) => {
           if (!result) return { error: 'Position not found' }
+          const fee = result.poolKey?.fee
           return {
             currency0: result.poolKey?.currency0,
             currency1: result.poolKey?.currency1,
-            fee: result.poolKey?.fee,
-            tickSpacing: result.poolKey?.tickSpacing,
+            fee: fee === undefined ? undefined : String(fee),
+            tickSpacing:
+              result.poolKey?.tickSpacing ??
+              (Number.isFinite(Number(fee)) ? tickSpacingForFee(Number(fee)) : undefined),
             tickLower: result.tickLower,
             tickUpper: result.tickUpper,
             liquidity: result.liquidity,

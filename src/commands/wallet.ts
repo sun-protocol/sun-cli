@@ -44,10 +44,10 @@ export function registerWalletCommands(program: Command) {
             tokens: tokenList,
           })
           return balances.map((item) => ({
+            address: owner,
             type: String(item.token).toUpperCase() === 'TRX' ? 'TRX' : 'TRC20',
             tokenAddress: String(item.token).toUpperCase() === 'TRX' ? undefined : item.token,
             balance: item.balance,
-            decimals: item.decimals,
           }))
         },
         tableConfig: {

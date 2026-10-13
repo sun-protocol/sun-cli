@@ -163,6 +163,7 @@ describe('liquidity SDK integration', () => {
     await expect(
       action.execute({ liquidity: { v4: { add: { execute } } } }),
     ).resolves.toMatchObject({ txid: 'mint-tx' })
+    expect(action.summary.Fee).toBe('3000 (default)')
     expect(execute).toHaveBeenCalledWith(
       expect.objectContaining({
         fee: 3000,
@@ -174,6 +175,42 @@ describe('liquidity SDK integration', () => {
       }),
     )
     expect(execute.mock.calls[0][0]).not.toHaveProperty('recipient')
+  })
+
+  it('preserves the V4 info output shape while using corrected SDK values', async () => {
+    const readAction = jest.fn().mockResolvedValue(undefined)
+    jest.doMock('../../src/lib/command', () => ({
+      writeAction: jest.fn().mockResolvedValue(undefined),
+      readAction,
+    }))
+    jest.doMock('../../src/lib/context', () => ({ getNetwork: () => 'nile' }))
+
+    const { registerLiquidityCommands } = require('../../src/commands/liquidity')
+    const program = new Command()
+    program.exitOverride()
+    registerLiquidityCommands(program)
+    await program.parseAsync(
+      ['node', 'sun', 'liquidity', 'v4:info', '--pm', 'TPositionManager', '--token-id', '7'],
+      { from: 'node' },
+    )
+
+    const action = readAction.mock.calls[0][0]
+    expect(
+      action.transform({
+        poolKey: { currency0: 'TToken0', currency1: 'TToken1', fee: 500 },
+        tickLower: -120,
+        tickUpper: 120,
+        liquidity: '199999',
+      }),
+    ).toEqual({
+      currency0: 'TToken0',
+      currency1: 'TToken1',
+      fee: '500',
+      tickSpacing: 10,
+      tickLower: -120,
+      tickUpper: 120,
+      liquidity: '199999',
+    })
   })
 
   it('lets the SDK derive V4 pool context from tokenId for increase', async () => {

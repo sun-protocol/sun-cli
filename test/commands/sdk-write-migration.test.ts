@@ -34,7 +34,7 @@ describe('SDK command migrations', () => {
     const tronClient = { kind: 'tron-client' }
     const runtime = { tronClient }
     await expect(opts.execute({ runtime })).resolves.toEqual([
-      { type: 'TRX', tokenAddress: undefined, balance: '100', decimals: 6 },
+      { address: 'TOwner', type: 'TRX', tokenAddress: undefined, balance: '100' },
     ])
     expect(readBalances).toHaveBeenCalledWith(tronClient, {
       owner: 'TOwner',
