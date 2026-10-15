@@ -6,7 +6,7 @@ describe('sunpump SDK integration', () => {
     jest.clearAllMocks()
   })
 
-  it('allows Nile search-v2 and initializes the SDK API client for nile', async () => {
+  it('rejects every SunPump subcommand on Nile before initializing an SDK client', async () => {
     const searchTokensV2 = jest.fn().mockResolvedValue({ code: 0, data: { list: [] } })
     const SunPumpApiClient = jest.fn().mockImplementation(() => ({
       searchTokensV2,
@@ -15,9 +15,10 @@ describe('sunpump SDK integration', () => {
     const printPaginationFooter = jest.fn()
 
     jest.doMock('@sun-protocol/sun-sdk-api', () => ({ SunPumpApiClient }))
+    const getKit = jest.fn()
     jest.doMock('../../src/lib/context', () => ({
       getNetwork: () => 'nile',
-      getKit: jest.fn(),
+      getKit,
     }))
     jest.doMock('../../src/lib/output', () => ({
       output,
@@ -34,27 +35,28 @@ describe('sunpump SDK integration', () => {
     }))
 
     const { registerSunpumpCommands } = require('../../src/commands/sunpump')
-    const program = new Command()
-    program.exitOverride()
-    registerSunpumpCommands(program)
+    const commands = [
+      ['sunpump', 'token', 'search-v2', 'SUN', '--page', '1', '--size', '36'],
+      ['sunpump', 'quote-buy', 'TTestToken', '--trx', '1'],
+      ['sunpump', 'buy', 'TTestToken', '--trx', '1'],
+    ]
 
-    await program.parseAsync(
-      ['node', 'sun', 'sunpump', 'token', 'search-v2', 'SUN', '--page', '1', '--size', '36'],
-      { from: 'node' },
-    )
+    for (const args of commands) {
+      const program = new Command()
+      program.exitOverride()
+      registerSunpumpCommands(program)
 
-    expect(SunPumpApiClient).toHaveBeenCalledWith({ network: 'nile' })
-    expect(searchTokensV2).toHaveBeenCalledWith({
-      query: 'SUN',
-      onSunSwap: undefined,
-      filterDliveShowing: undefined,
-      filterAiHelper: undefined,
-      filterTwitterLaunch: undefined,
-      filterSunAgentLaunch: undefined,
-      page: 1,
-      size: 36,
-      sort: undefined,
-    })
-    expect(output).toHaveBeenCalledWith({ list: [] }, expect.any(Object))
+      await expect(
+        program.parseAsync(['node', 'sun', ...args], { from: 'node' }),
+      ).rejects.toMatchObject({
+        code: 'SDK_UNSUPPORTED_NETWORK',
+        message: expect.stringContaining('SunPump is only available on mainnet'),
+      })
+    }
+
+    expect(SunPumpApiClient).not.toHaveBeenCalled()
+    expect(searchTokensV2).not.toHaveBeenCalled()
+    expect(getKit).not.toHaveBeenCalled()
+    expect(output).not.toHaveBeenCalled()
   })
 })

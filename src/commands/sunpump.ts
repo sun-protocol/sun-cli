@@ -34,12 +34,20 @@ interface PumpActionOpts<T> {
   detailFor?: (data: any) => Record<string, unknown> | null
 }
 
-function getSunPumpApi(): SunPumpApiClient {
+function assertMainnet(): void {
   const network = getNetwork()
-  if (network !== 'mainnet' && network !== 'nile') {
-    throw new Error(`Unsupported SDK network: ${network}`)
+  if (network !== 'mainnet') {
+    const error = new Error(
+      `SunPump is only available on mainnet (got "${network}"). Drop --network or pass --network mainnet.`,
+    )
+    ;(error as Error & { code: string }).code = 'SDK_UNSUPPORTED_NETWORK'
+    throw error
   }
-  return new SunPumpApiClient({ network })
+}
+
+function getSunPumpApi(): SunPumpApiClient {
+  assertMainnet()
+  return new SunPumpApiClient({ network: 'mainnet' })
 }
 
 async function pumpAction<T>(opts: PumpActionOpts<T>): Promise<void> {
@@ -279,7 +287,12 @@ const portfolioTable = {
 // ---------------------------------------------------------------------------
 
 export function registerSunpumpCommands(program: Command) {
-  const sp = program.command('sunpump').description('SunPump endpoints (mainnet and nile).')
+  const sp = program
+    .command('sunpump')
+    .description('SunPump endpoints (mainnet only: api-v2.sunpump.meme).')
+    .hook('preAction', () => {
+      assertMainnet()
+    })
 
   // -------------------------- token group ----------------------------------
   const token = sp.command('token').description('Token info, search, holders, ranking')
