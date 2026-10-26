@@ -159,22 +159,84 @@ describe('liquidity SDK integration', () => {
     const execute = jest.fn().mockResolvedValue({
       finalResult: { type: 'transaction', txid: 'mint-tx', raw: { result: true } },
     })
+    const read = jest
+      .fn()
+      .mockResolvedValue({ sqrtPriceX96: '79228162514264337593543950336', tick: 12347 })
 
     await expect(
-      action.execute({ liquidity: { v4: { add: { execute } } } }),
+      action.execute({ network: 'nile', liquidity: { v4: { read, add: { execute } } } }),
     ).resolves.toMatchObject({ txid: 'mint-tx' })
-    expect(action.summary.Fee).toBe('3000 (default)')
+    expect(action.summary.Fee).toBe('500 (default)')
+    expect(action.summary['Tick Range']).toBe('(auto)')
     expect(execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        fee: 3000,
-        tickSpacing: 60,
-        tickLower: -120,
-        tickUpper: 120,
+        fee: 500,
+        tickSpacing: 10,
+        tickLower: 11350,
+        tickUpper: 13350,
         amount0: '100',
         owner: 'TOwner',
       }),
     )
     expect(execute.mock.calls[0][0]).not.toHaveProperty('recipient')
+  })
+
+  it('preserves explicit V4 fees and tick zero without an automatic pool read', async () => {
+    const action = await captureWriteAction([
+      'v4:mint',
+      '--token0',
+      'SUN',
+      '--token1',
+      'USDT',
+      '--amount0',
+      '100',
+      '--amount1',
+      '200',
+      '--fee',
+      '3000',
+      '--tick-lower',
+      '0',
+      '--tick-upper',
+      '120',
+    ])
+    const execute = jest.fn().mockResolvedValue({ txids: ['mint-explicit-tx'] })
+    const read = jest.fn()
+
+    await action.execute({ network: 'nile', liquidity: { v4: { read, add: { execute } } } })
+
+    expect(read).not.toHaveBeenCalled()
+    expect(action.summary.Fee).toBe('3000')
+    expect(action.summary['Tick Range']).toBe('[0, 120]')
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fee: 3000,
+        tickSpacing: 60,
+        tickLower: 0,
+        tickUpper: 120,
+      }),
+    )
+  })
+
+  it('does not submit V4 mint when automatic ticks cannot be resolved', async () => {
+    const action = await captureWriteAction([
+      'v4:mint',
+      '--token0',
+      'SUN',
+      '--token1',
+      'USDT',
+      '--amount0',
+      '100',
+    ])
+    const execute = jest.fn()
+    const read = jest.fn().mockRejectedValue(new Error('Pool unavailable'))
+
+    await expect(
+      action.execute({
+        network: 'nile',
+        liquidity: { v4: { read, add: { execute } } },
+      }),
+    ).rejects.toMatchObject({ code: 'POOL_NOT_FOUND' })
+    expect(execute).not.toHaveBeenCalled()
   })
 
   it('preserves the V4 info output shape while using corrected SDK values', async () => {

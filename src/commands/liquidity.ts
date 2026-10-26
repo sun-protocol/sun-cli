@@ -6,9 +6,16 @@ import { resolveTokenAddress, getSymbolOrAddress } from '../lib/tokens'
 import { getContractAddress } from '@sun-protocol/sun-sdk-chains'
 import type { Network } from '@sun-protocol/sun-sdk-core'
 import { TronWeb } from 'tronweb'
-import { TRX_ADDRESS, WTRX_MAINNET, WTRX_NILE } from '../lib/sdk/constants'
+import {
+  DEFAULT_V3_FEE,
+  DEFAULT_V4_FEE,
+  TRX_ADDRESS,
+  WTRX_MAINNET,
+  WTRX_NILE,
+} from '../lib/sdk/constants'
 import { createReadonlyTronWeb } from '../lib/sdk/factory'
 import { toCliTxResult } from '../lib/sdk/compat'
+import { resolveV4MintTicks, v4TickSpacingForFee } from '../lib/sdk/liquidity-v4'
 
 const SUNSWAP_V2_FACTORY_MIN_ABI = [
   {
@@ -44,13 +51,6 @@ const SUNSWAP_V2_PAIR_MIN_ABI = [
   },
 ]
 
-const TICK_SPACING_BY_FEE: Record<number, number> = {
-  100: 1,
-  500: 10,
-  3000: 60,
-  10000: 200,
-}
-
 function assertSdkNetwork(network: string): Network {
   if (network === 'mainnet' || network === 'nile') return network
   throw new Error(`Unsupported SDK network: ${network}`)
@@ -72,10 +72,6 @@ function getV2Factory(network: string): string {
 
 function percentFromDecimal(value: string | undefined): `${number}%` | undefined {
   return value === undefined ? undefined : (`${parseFloat(value) * 100}%` as `${number}%`)
-}
-
-function tickSpacingForFee(fee: number): number {
-  return TICK_SPACING_BY_FEE[fee] ?? 60
 }
 
 function toV3PoolOrder<T>(token0: string, token1: string, value0: T, value1: T): [T, T] {
@@ -355,7 +351,7 @@ export function registerLiquidityCommands(program: Command) {
     .option('--pm <address>', 'V3 NonfungiblePositionManager address (auto-detected by network)')
     .requiredOption('--token0 <tokenOrAddress>', 'Token0 (symbol like TRX/USDT or address)')
     .requiredOption('--token1 <tokenOrAddress>', 'Token1 (symbol like TRX/USDT or address)')
-    .option('--fee <n>', 'Pool fee tier (default: 3000)')
+    .option('--fee <n>', `Pool fee tier (default: ${DEFAULT_V3_FEE})`)
     .option('--tick-lower <n>', 'Lower tick (auto-computed if omitted)')
     .option('--tick-upper <n>', 'Upper tick (auto-computed if omitted)')
     .option('--amount0 <raw>', 'Desired amount of token0')
@@ -404,7 +400,7 @@ export function registerLiquidityCommands(program: Command) {
           'Position Manager': pm,
           Token0: `${token0Display}${token0Note} (${token0})`,
           Token1: `${token1Display}${token1Note} (${token1})`,
-          Fee: opts.fee || '3000 (default)',
+          Fee: opts.fee || `${DEFAULT_V3_FEE} (default)`,
           'Tick Range': tickRange,
           Amount0: opts.amount0 || '(auto)',
           Amount1: opts.amount1 || '(auto)',
@@ -419,7 +415,7 @@ export function registerLiquidityCommands(program: Command) {
               contracts: withContracts({ sunswapV3PositionManager: pm }),
               tokenA: token0,
               tokenB: token1,
-              fee: opts.fee ? parseInt(opts.fee) : 3000,
+              fee: opts.fee ? parseInt(opts.fee) : DEFAULT_V3_FEE,
               tickLower: opts.tickLower ? parseInt(opts.tickLower) : undefined,
               tickUpper: opts.tickUpper ? parseInt(opts.tickUpper) : undefined,
               tickRangeWidth:
@@ -596,7 +592,7 @@ export function registerLiquidityCommands(program: Command) {
     .description('Mint a new SUNSWAP V4 concentrated liquidity position')
     .requiredOption('--token0 <tokenOrAddress>', 'Token0 (symbol like TRX/USDT or address)')
     .requiredOption('--token1 <tokenOrAddress>', 'Token1 (symbol like TRX/USDT or address)')
-    .option('--fee <n>', 'Pool fee tier (e.g. 500)')
+    .option('--fee <n>', `Pool fee tier (default: ${DEFAULT_V4_FEE})`)
     .option('--tick-lower <n>', 'Lower tick (auto-computed if omitted)')
     .option('--tick-upper <n>', 'Upper tick (auto-computed if omitted)')
     .option('--amount0 <raw>', 'Desired amount of token0')
@@ -626,10 +622,9 @@ export function registerLiquidityCommands(program: Command) {
       const token1Display = getSymbolOrAddress(token1Input, network)
       const token0Note = token0 !== token0Input ? ` → WTRX` : ''
       const token1Note = token1 !== token1Input ? ` → WTRX` : ''
-      const fee = opts.fee ? parseInt(opts.fee) : 3000
-      const tickSpacing = tickSpacingForFee(fee)
-      const tickLower = opts.tickLower ? parseInt(opts.tickLower) : -2 * tickSpacing
-      const tickUpper = opts.tickUpper ? parseInt(opts.tickUpper) : 2 * tickSpacing
+      const fee = opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE
+      const tickLower = opts.tickLower !== undefined ? parseInt(opts.tickLower) : undefined
+      const tickUpper = opts.tickUpper !== undefined ? parseInt(opts.tickUpper) : undefined
 
       if (!opts.amount0 && !opts.amount1) {
         console.error('Error: At least one of --amount0 or --amount1 is required')
@@ -642,8 +637,11 @@ export function registerLiquidityCommands(program: Command) {
         summary: {
           Token0: `${token0Display}${token0Note} (${token0})`,
           Token1: `${token1Display}${token1Note} (${token1})`,
-          Fee: opts.fee || '3000 (default)',
-          'Tick Range': `[${tickLower}, ${tickUpper}]`,
+          Fee: opts.fee || `${DEFAULT_V4_FEE} (default)`,
+          'Tick Range':
+            tickLower !== undefined && tickUpper !== undefined
+              ? `[${tickLower}, ${tickUpper}]`
+              : '(auto)',
           Amount0: opts.amount0 || '(auto)',
           Amount1: opts.amount1 || '(auto)',
           Slippage: opts.slippage
@@ -655,24 +653,31 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Mint V4 position?',
         spinnerLabel: 'Minting V4 position...',
         errorLabel: 'V4 mint failed',
-        execute: (sdk) =>
-          sdk.liquidity.v4.add
+        execute: async (sdk) => {
+          const ticks = await resolveV4MintTicks(sdk, {
+            token0,
+            token1,
+            fee,
+            tickLower,
+            tickUpper,
+            sqrtPriceX96: opts.sqrtPrice,
+            createPool: opts.createPool,
+          })
+          return sdk.liquidity.v4.add
             .execute({
               token0,
               token1,
               fee,
-              tickSpacing,
-              tickLower,
-              tickUpper,
+              ...ticks,
               amount0: opts.amount0,
               amount1: opts.amount1,
               slippage: percentFromDecimal(opts.slippage),
               owner: opts.recipient,
               deadline: opts.deadline,
               sqrtPriceX96: opts.sqrtPrice,
-              createPool: opts.createPool,
             })
-            .then(mapTx),
+            .then(mapTx)
+        },
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.poolCreated !== undefined) out['Pool Created'] = result.poolCreated
@@ -904,7 +909,7 @@ export function registerLiquidityCommands(program: Command) {
             fee: fee === undefined ? undefined : String(fee),
             tickSpacing:
               result.poolKey?.tickSpacing ??
-              (Number.isFinite(Number(fee)) ? tickSpacingForFee(Number(fee)) : undefined),
+              (Number.isFinite(Number(fee)) ? v4TickSpacingForFee(Number(fee)) : undefined),
             tickLower: result.tickLower,
             tickUpper: result.tickUpper,
             liquidity: result.liquidity,

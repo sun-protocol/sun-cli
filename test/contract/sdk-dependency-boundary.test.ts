@@ -31,6 +31,8 @@ describe('public SUN SDK dependency boundary', () => {
       '@sun-protocol/sun-sdk-core',
       '@sun-protocol/sun-sdk-protocols',
       '@sun-protocol/sun-sdk-runtime',
+      '@sun-protocol/sun-sdk-sunswap-v3',
+      '@sun-protocol/sun-sdk-sunswap-v4',
     ]
 
     for (const name of sdkPackages) {
