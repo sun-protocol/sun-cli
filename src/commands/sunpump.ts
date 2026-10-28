@@ -47,7 +47,7 @@ function assertMainnet(): void {
 
 function getSunPumpApi(): SunPumpApiClient {
   assertMainnet()
-  return new SunPumpApiClient({ network: 'mainnet' })
+  return new SunPumpApiClient({ network: 'mainnet', baseUrl: process.env.SUNPUMP_API_BASE_URL })
 }
 
 async function pumpAction<T>(opts: PumpActionOpts<T>): Promise<void> {
@@ -754,7 +754,7 @@ export function registerSunpumpCommands(program: Command) {
       try {
         const quote: any = await withSpinner('Fetching buy quote...', async () => {
           const kit = await getKit()
-          return kit.pump.buy.quote({ token: tokenAddress, trxAmount: trxSun })
+          return kit.pump.buy.quote({ token: tokenAddress, trxAmount: trxSun, launchpadOnly: true })
         })
         if (isJsonMode()) {
           output({ ...quote, tokenAddress, trxSun, trxIn: opts.trx })
@@ -787,7 +787,11 @@ export function registerSunpumpCommands(program: Command) {
       try {
         const quote: any = await withSpinner('Fetching sell quote...', async () => {
           const kit = await getKit()
-          return kit.pump.sell.quote({ token: tokenAddress, tokenAmount: tokenRaw })
+          return kit.pump.sell.quote({
+            token: tokenAddress,
+            tokenAmount: tokenRaw,
+            launchpadOnly: true,
+          })
         })
         if (isJsonMode()) {
           output({ ...quote, tokenAddress, tokenRaw, amountIn: opts.amount })
@@ -829,7 +833,7 @@ export function registerSunpumpCommands(program: Command) {
       try {
         const quote = await withSpinner('Fetching buy quote...', async () => {
           const kit = await getKit()
-          return kit.pump.buy.quote({ token: tokenAddress, trxAmount: trxSun })
+          return kit.pump.buy.quote({ token: tokenAddress, trxAmount: trxSun, launchpadOnly: true })
         })
         summary['Tokens Out (expected)'] = baseUnitsToDecimal((quote as any).tokenAmount, 18)
         summary['Fee'] = `${baseUnitsToDecimal((quote as any).fee, 6)} TRX`
@@ -850,8 +854,9 @@ export function registerSunpumpCommands(program: Command) {
               token: tokenAddress,
               trxAmount: trxSun,
               minTokenOut: opts.minOut,
+              launchpadOnly: true,
               slippage: `${slippage * 100}%`,
-            } as any)
+            })
             .then(toCliTxResult),
         onSuccess: async (result: any) => {
           if (isJsonMode()) return
@@ -901,7 +906,11 @@ export function registerSunpumpCommands(program: Command) {
       try {
         const quote = await withSpinner('Fetching sell quote...', async () => {
           const kit = await getKit()
-          return kit.pump.sell.quote({ token: tokenAddress, tokenAmount: tokenRaw })
+          return kit.pump.sell.quote({
+            token: tokenAddress,
+            tokenAmount: tokenRaw,
+            launchpadOnly: true,
+          })
         })
         summary['TRX Out (expected)'] = `${baseUnitsToDecimal((quote as any).trxAmount, 6)} TRX`
         summary['Fee'] = `${baseUnitsToDecimal((quote as any).fee, 6)} TRX`
@@ -922,8 +931,9 @@ export function registerSunpumpCommands(program: Command) {
               token: tokenAddress,
               tokenAmount: tokenRaw,
               minTrxOut: opts.minOut,
+              launchpadOnly: true,
               slippage: `${slippage * 100}%`,
-            } as any)
+            })
             .then(toCliTxResult),
         onSuccess: async (result: any) => {
           if (isJsonMode()) return

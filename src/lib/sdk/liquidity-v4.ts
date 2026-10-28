@@ -1,4 +1,4 @@
-import { Fraction } from '@sun-protocol/sun-sdk-core'
+import { Fraction, type Network } from '@sun-protocol/sun-sdk-core'
 import { nearestUsableTick, TickMath } from '@sun-protocol/sun-sdk-sunswap-v3'
 import {
   computeV4PoolId,
@@ -18,6 +18,16 @@ const TICK_SPACING_BY_FEE: Record<number, number> = {
 
 export function v4TickSpacingForFee(fee: number): number {
   return TICK_SPACING_BY_FEE[fee] ?? 10
+}
+
+export function v4PoolKeyFromCli(network: Network, token0: string, token1: string, fee: number) {
+  return createV4PoolKey({
+    network,
+    currencyA: token0,
+    currencyB: token1,
+    fee,
+    parameters: encodeV4PoolParameters({ tickSpacing: v4TickSpacingForFee(fee) }),
+  })
 }
 
 interface V4MintTickInput {

@@ -4,11 +4,13 @@
 
 import type { SunApiClient } from '@sun-protocol/sun-sdk-api'
 import { initWallet, getWallet, isWalletConfigured } from './wallet'
-import { createSunApiClient, createSunSDK } from './sdk/factory'
+import { createSunApiClient, createSunSDK, createGenericRuntime } from './sdk/factory'
+import type { ContractRuntime } from '@sun-protocol/sun-sdk-runtime'
 import type { CliSunSDK } from './sdk/types'
 
 let _api: SunApiClient | null = null
 let _sdk: CliSunSDK | null = null
+let _runtime: ContractRuntime | null = null
 let _initialized = false
 
 function getNetwork(): string {
@@ -39,6 +41,22 @@ export async function getSdk(): Promise<CliSunSDK> {
   }
 
   return _sdk
+}
+
+export async function getRuntime(): Promise<ContractRuntime> {
+  if (!_initialized) {
+    await initWallet()
+    _initialized = true
+  }
+  if (!_runtime) {
+    _runtime = await createGenericRuntime({
+      wallet: isWalletConfigured() ? getWallet() : undefined,
+      network: getNetwork(),
+      tronGridApiKey: process.env.TRONGRID_API_KEY || process.env.TRON_GRID_API_KEY,
+      rpcUrl: process.env.TRON_RPC_URL,
+    })
+  }
+  return _runtime
 }
 
 /** @deprecated Use getSdk(). Kept for the existing sun-cli command API. */

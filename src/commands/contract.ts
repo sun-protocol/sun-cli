@@ -1,11 +1,10 @@
 import { Command } from 'commander'
 import { getNetwork } from '../lib/context'
-import { writeAction, readAction } from '../lib/command'
+import { writeRuntimeAction as writeAction, readRuntimeAction as readAction } from '../lib/command'
 import { toCliTxResult } from '../lib/sdk/compat'
 
-function parseAbi(value: string | undefined): any[] {
-  if (!value) throw new Error('--abi is required for SDK contract calls')
-  return JSON.parse(value)
+function parseAbi(value: string | undefined): any[] | undefined {
+  return value === undefined ? undefined : JSON.parse(value)
 }
 
 function parseValue(value: string | undefined): bigint | undefined {

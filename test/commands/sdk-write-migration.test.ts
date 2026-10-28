@@ -12,9 +12,27 @@ describe('SDK command migrations', () => {
     return program
   }
 
+  it.each(['read', 'send'])('keeps contract %s ABI optional for SDK discovery', async (verb) => {
+    const capture = jest.fn().mockResolvedValue(undefined)
+    jest.doMock('../../src/lib/command', () => ({
+      readRuntimeAction: capture,
+      writeRuntimeAction: capture,
+    }))
+    jest.doMock('../../src/lib/context', () => ({ getNetwork: () => 'shasta' }))
+    const { registerContractCommands } = require('../../src/commands/contract')
+    const program = makeProgram()
+    registerContractCommands(program)
+    await program.parseAsync(['node', 'sun', 'contract', verb, 'TContract', 'totalSupply'])
+    const call = jest.fn().mockResolvedValue('42')
+    await capture.mock.calls[0][0].execute({ runtime: { contract: { read: call, write: call } } })
+    expect(call).toHaveBeenCalledWith(
+      expect.objectContaining({ functionName: 'totalSupply', abi: undefined, args: [] }),
+    )
+  })
+
   it('wallet balances calls SDK readBalances with string tokens', async () => {
     const readAction = jest.fn().mockResolvedValue(undefined)
-    jest.doMock('../../src/lib/command', () => ({ readAction }))
+    jest.doMock('../../src/lib/command', () => ({ readRuntimeAction: readAction }))
     jest.doMock('../../src/lib/context', () => ({ getNetwork: () => 'nile' }))
     const readBalances = jest
       .fn()
@@ -44,7 +62,7 @@ describe('SDK command migrations', () => {
 
   it('contract send calls SDK runtime contract client and maps tx result', async () => {
     const writeAction = jest.fn().mockResolvedValue(undefined)
-    jest.doMock('../../src/lib/command', () => ({ writeAction }))
+    jest.doMock('../../src/lib/command', () => ({ writeRuntimeAction: writeAction }))
     jest.doMock('../../src/lib/context', () => ({ getNetwork: () => 'nile' }))
     const write = jest.fn().mockResolvedValue({ txid: 'tx1', raw: { result: true } })
 
@@ -72,7 +90,7 @@ describe('SDK command migrations', () => {
 
     const opts = writeAction.mock.calls[0][0]
     const sdk = { runtime: { contract: { write } } }
-    await expect(opts.execute(sdk)).resolves.toEqual({ txid: 'tx1', raw: { result: true } })
+    await expect(opts.execute(sdk)).resolves.toEqual({ txid: 'tx1', result: true })
     expect(write).toHaveBeenCalledWith({
       address: 'TContract',
       functionName: 'transfer',
@@ -112,7 +130,16 @@ describe('SDK command migrations', () => {
       },
     }
 
-    await expect(opts.execute(sdk)).resolves.toEqual({ txid: 'swap-tx', raw: { result: true } })
+    await expect(opts.execute(sdk)).resolves.toEqual({
+      txid: 'swap-tx',
+      route: {
+        amountIn: '1',
+        amountOut: '2',
+        symbols: ['SUN', 'USDT'],
+        poolVersions: undefined,
+        impact: undefined,
+      },
+    })
     expect(sdk.swap.router.quote).toHaveBeenCalledWith({
       tokenIn: 'TWrZRHY9aKQZcyjpovdH6qeCEyYZrRQDZt',
       tokenOut: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf',
@@ -122,6 +149,7 @@ describe('SDK command migrations', () => {
       quote,
       route: quote.bestRoute,
       slippage: '0.5%',
+      transactionValidForSeconds: 3600,
     })
   })
 })

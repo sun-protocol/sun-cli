@@ -13,9 +13,10 @@ import {
   WTRX_MAINNET,
   WTRX_NILE,
 } from '../lib/sdk/constants'
-import { createReadonlyTronWeb } from '../lib/sdk/factory'
+import { createReadonlyTronWeb, withLiquidityAbi } from '../lib/sdk/factory'
 import { toCliTxResult } from '../lib/sdk/compat'
-import { resolveV4MintTicks, v4TickSpacingForFee } from '../lib/sdk/liquidity-v4'
+import { resolveLegacyV3Pool } from '../lib/sdk/liquidity-v3'
+import { resolveV4MintTicks, v4TickSpacingForFee, v4PoolKeyFromCli } from '../lib/sdk/liquidity-v4'
 
 const SUNSWAP_V2_FACTORY_MIN_ABI = [
   {
@@ -70,8 +71,20 @@ function getV2Factory(network: string): string {
   return getContractAddress(assertSdkNetwork(network), 'sunswapV2Factory')
 }
 
-function percentFromDecimal(value: string | undefined): `${number}%` | undefined {
-  return value === undefined ? undefined : (`${parseFloat(value) * 100}%` as `${number}%`)
+// SunKit V4 interpreted this existing CLI value as percent, despite its help text.
+// Keep that historical interpretation and integer rounding during migration.
+function legacyV4MaximumSlippage(value: string | undefined): `${number}%` {
+  const percent = value === undefined ? 0 : parseFloat(value)
+  const bips = percent > 0 ? Math.floor((100 + percent) * 100) - 10_000 : 0
+  return `${bips / 100}%`
+}
+
+function legacyV4Minimum(value: string | undefined, slippage: string | undefined): string {
+  const amount = BigInt(value ?? '0')
+  const percent = slippage === undefined ? 0 : parseFloat(slippage)
+  return percent > 0
+    ? ((amount * BigInt(Math.floor((100 - percent) * 100))) / 10_000n).toString()
+    : amount.toString()
 }
 
 function toV3PoolOrder<T>(token0: string, token1: string, value0: T, value1: T): [T, T] {
@@ -87,8 +100,19 @@ function withContracts(
   return entries.length ? Object.fromEntries(entries) : undefined
 }
 
-function mapTx(result: unknown): unknown {
-  return toCliTxResult(result)
+function mapTx(result: unknown, reverseAmounts = false): unknown {
+  const mapped = toCliTxResult(result) as Record<string, unknown>
+  const amounts = mapped?.computedAmounts as
+    | { amount0Desired: string; amount1Desired: string }
+    | undefined
+  if (!reverseAmounts || !amounts) return mapped
+  return {
+    ...mapped,
+    computedAmounts: {
+      amount0Desired: amounts.amount1Desired,
+      amount1Desired: amounts.amount0Desired,
+    },
+  }
 }
 
 function toWTRXIfNative(tokenAddress: string, network: string): string {
@@ -267,8 +291,8 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Add V2 liquidity?',
         spinnerLabel: 'Adding V2 liquidity...',
         errorLabel: 'V2 add liquidity failed',
-        execute: (sdk) =>
-          sdk.liquidity.v2.add
+        execute: async (client) =>
+          (await withLiquidityAbi(client, router, opts.abi)).liquidity.v2.add
             .execute({
               contracts: withContracts({ sunswapV2Router: router }),
               tokenA,
@@ -278,9 +302,10 @@ export function registerLiquidityCommands(program: Command) {
               amountAMin: opts.minA,
               amountBMin: opts.minB,
               recipient: opts.to,
+              ttlSeconds: 1800,
               deadline: opts.deadline,
             })
-            .then(mapTx),
+            .then((result) => mapTx(result)),
       })
     })
 
@@ -325,8 +350,8 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Remove V2 liquidity?',
         spinnerLabel: 'Removing V2 liquidity...',
         errorLabel: 'V2 remove liquidity failed',
-        execute: (sdk) =>
-          sdk.liquidity.v2.remove
+        execute: async (sdk) =>
+          (await withLiquidityAbi(sdk, router, opts.abi)).liquidity.v2.remove
             .execute({
               contracts: withContracts({ sunswapV2Router: router }),
               tokenA,
@@ -335,9 +360,10 @@ export function registerLiquidityCommands(program: Command) {
               amountAMin: opts.minA,
               amountBMin: opts.minB,
               recipient: opts.to,
+              ttlSeconds: 1800,
               deadline: opts.deadline,
             })
-            .then(mapTx),
+            .then((result) => mapTx(result)),
       })
     })
 
@@ -409,25 +435,35 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Mint V3 position?',
         spinnerLabel: 'Minting V3 position...',
         errorLabel: 'V3 mint failed',
-        execute: (sdk) =>
-          sdk.liquidity.v3.add
+        execute: async (sdk) =>
+          (await withLiquidityAbi(sdk, pm, opts.abi)).liquidity.v3.add
             .execute({
               contracts: withContracts({ sunswapV3PositionManager: pm }),
               tokenA: token0,
               tokenB: token1,
               fee: opts.fee ? parseInt(opts.fee) : DEFAULT_V3_FEE,
+              pool: await resolveLegacyV3Pool(sdk, {
+                token0,
+                token1,
+                fee: opts.fee ? parseInt(opts.fee) : DEFAULT_V3_FEE,
+              }),
               tickLower: opts.tickLower ? parseInt(opts.tickLower) : undefined,
               tickUpper: opts.tickUpper ? parseInt(opts.tickUpper) : undefined,
+              tickRangeMode: 'legacy',
+              amountInputMode: 'legacy-cli',
+              includeComputedMetadata: true,
               tickRangeWidth:
-                opts.tickLower === undefined && opts.tickUpper === undefined ? 100 : undefined,
+                opts.tickLower === undefined || opts.tickUpper === undefined ? 100 : undefined,
               amount0,
               amount1,
-              amount0Min,
-              amount1Min,
+              // Legacy V3 defaults are zero, not the SDK's slippage-derived minima.
+              amount0Min: amount0Min ?? '0',
+              amount1Min: amount1Min ?? '0',
               recipient: opts.recipient,
+              ttlSeconds: 1800,
               deadline: opts.deadline,
             })
-            .then(mapTx),
+            .then((result) => mapTx(result, toV3PoolOrder(token0, token1, false, true)[0])),
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.computedTicks) {
@@ -477,15 +513,35 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Increase V3 liquidity?',
         spinnerLabel: 'Increasing V3 liquidity...',
         errorLabel: 'V3 increase liquidity failed',
-        execute: (sdk) =>
-          sdk.liquidity.v3.increase
+        execute: async (sdk) =>
+          (
+            await withLiquidityAbi(
+              sdk,
+              pm,
+              opts.abi,
+              BigInt(opts.amount0 ?? '0') === 0n || BigInt(opts.amount1 ?? '0') === 0n
+                ? ['positions(uint256)']
+                : [],
+            )
+          ).liquidity.v3.increase
             .execute({
               contracts: withContracts({ sunswapV3PositionManager: pm }),
               tokenId: opts.tokenId,
               amount0: opts.amount0,
               amount1: opts.amount1,
-              amount0Min: opts.min0,
-              amount1Min: opts.min1,
+              amountInputMode: 'legacy-cli',
+              includeComputedMetadata: true,
+              pool:
+                BigInt(opts.amount0 ?? '0') === 0n || BigInt(opts.amount1 ?? '0') === 0n
+                  ? await resolveLegacyV3Pool(sdk, {
+                      tokenId: opts.tokenId,
+                      positionManager: pm,
+                      positionAbi: opts.abi,
+                    })
+                  : undefined,
+              amount0Min: opts.min0 ?? '0',
+              amount1Min: opts.min1 ?? '0',
+              ttlSeconds: 1800,
               deadline: opts.deadline,
             })
             .then(mapTx),
@@ -526,15 +582,16 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Decrease V3 liquidity?',
         spinnerLabel: 'Decreasing V3 liquidity...',
         errorLabel: 'V3 decrease liquidity failed',
-        execute: (sdk) =>
-          sdk.positions.v3.remove
+        execute: async (sdk) =>
+          (await withLiquidityAbi(sdk, pm, opts.abi)).positions.v3.remove
             .execute({
               contracts: withContracts({ sunswapV3PositionManager: pm }),
               tokenId: opts.tokenId,
               liquidity: opts.liquidity,
-              amount0Min: opts.min0,
-              amount1Min: opts.min1,
+              amount0Min: opts.min0 ?? '0',
+              amount1Min: opts.min1 ?? '0',
               collectFees: false,
+              ttlSeconds: 1800,
               deadline: opts.deadline,
             })
             .then(mapTx),
@@ -563,12 +620,13 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Collect V3 fees?',
         spinnerLabel: 'Collecting V3 fees...',
         errorLabel: 'V3 collect failed',
-        execute: (sdk) =>
-          sdk.positions.v3.collect
+        execute: async (sdk) =>
+          (await withLiquidityAbi(sdk, pm, opts.abi)).positions.v3.collect
             .execute({
               contracts: withContracts({ sunswapV3PositionManager: pm }),
               tokenId: opts.tokenId,
               recipient: opts.recipient,
+              estimateFees: true,
             })
             .then(mapTx),
         summarizeResult: (result: any) => {
@@ -671,12 +729,23 @@ export function registerLiquidityCommands(program: Command) {
               ...ticks,
               amount0: opts.amount0,
               amount1: opts.amount1,
-              slippage: percentFromDecimal(opts.slippage),
-              owner: opts.recipient,
+              slippage: legacyV4MaximumSlippage(opts.slippage),
+              roundingMode: 'floor',
+              amountInputMode: 'legacy-cli',
+              includeComputedMetadata: true,
+              transactionMode: 'multicall',
+              recipient: opts.recipient,
+              sweepRecipient: opts.recipient,
+              ttlSeconds: 1800,
               deadline: opts.deadline,
               sqrtPriceX96: opts.sqrtPrice,
             })
-            .then(mapTx)
+            .then((result) => {
+              const mapped = mapTx(result) as Record<string, unknown>
+              return tickLower === undefined || tickUpper === undefined
+                ? { ...mapped, computedTicks: ticks }
+                : mapped
+            })
         },
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
@@ -748,9 +817,18 @@ export function registerLiquidityCommands(program: Command) {
           sdk.liquidity.v4.increase
             .execute({
               tokenId: opts.tokenId,
+              token0,
+              token1,
+              fee: opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE,
+              tickSpacing: v4TickSpacingForFee(opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE),
               amount0: opts.amount0,
               amount1: opts.amount1,
-              slippage: percentFromDecimal(opts.slippage),
+              slippage: legacyV4MaximumSlippage(opts.slippage),
+              roundingMode: 'floor',
+              amountInputMode: 'legacy-cli',
+              includeComputedMetadata: true,
+              transactionMode: 'multicall',
+              ttlSeconds: 1800,
               deadline: opts.deadline,
             })
             .then(mapTx),
@@ -814,9 +892,18 @@ export function registerLiquidityCommands(program: Command) {
             .execute({
               tokenId: opts.tokenId,
               liquidity: opts.liquidity,
-              amount0Min: opts.min0,
-              amount1Min: opts.min1,
-              slippage: percentFromDecimal(opts.slippage),
+              poolKey: v4PoolKeyFromCli(
+                assertSdkNetwork(network),
+                token0,
+                token1,
+                opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE,
+              ),
+              amount0Min: legacyV4Minimum(opts.min0, opts.slippage),
+              amount1Min: legacyV4Minimum(opts.min1, opts.slippage),
+              includeComputedMetadata: true,
+              transactionMode: 'multicall',
+              settlementMode: 'close-currency',
+              ttlSeconds: 1800,
               deadline: opts.deadline,
             })
             .then(mapTx),
@@ -880,6 +967,19 @@ export function registerLiquidityCommands(program: Command) {
           sdk.positions.v4.collect
             .execute({
               tokenId: opts.tokenId,
+              ...(token0 && token1
+                ? {
+                    poolKey: v4PoolKeyFromCli(
+                      assertSdkNetwork(network),
+                      token0,
+                      token1,
+                      opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE,
+                    ),
+                  }
+                : {}),
+              transactionMode: 'multicall',
+              settlementMode: 'close-currency',
+              ttlSeconds: 1800,
               deadline: opts.deadline,
             })
             .then(mapTx),

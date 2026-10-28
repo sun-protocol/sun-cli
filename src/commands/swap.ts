@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { getNetwork } from '../lib/context'
-import { writeAction, readAction } from '../lib/command'
+import { writeAction, writeRuntimeAction, readRuntimeAction as readAction } from '../lib/command'
 import { isJsonMode, output, outputError, withSpinner } from '../lib/output'
 import { resolveTokenAddress, getSymbolOrAddress } from '../lib/tokens'
 import { toCliTxResult } from '../lib/sdk/compat'
@@ -26,9 +26,8 @@ function cliSlippageToSdk(value: number): `${number}%` {
   return `${value * 100}%` as `${number}%`
 }
 
-function parseAbi(value: string | undefined): any[] {
-  if (!value) throw new Error('--abi is required for SDK contract calls')
-  return JSON.parse(value)
+function parseAbi(value: string | undefined): any[] | undefined {
+  return value === undefined ? undefined : JSON.parse(value)
 }
 
 async function fetchSwapQuote(
@@ -109,8 +108,19 @@ export function registerSwapCommands(program: Command) {
             quote,
             route,
             slippage: cliSlippageToSdk(slippage),
+            // SunKit router swaps used a one-hour transaction deadline.
+            transactionValidForSeconds: 3600,
           })
-          return toCliTxResult(result)
+          return {
+            txid: (toCliTxResult(result) as { txid: string }).txid,
+            route: {
+              amountIn: route.amountIn,
+              amountOut: route.amountOut,
+              symbols: route.symbols,
+              poolVersions: route.poolVersions,
+              impact: route.impact,
+            },
+          }
         },
         onSuccess: async (result: any) => {
           if (!isJsonMode()) {
@@ -223,7 +233,7 @@ export function registerSwapCommands(program: Command) {
     .option('--value <sun>', 'TRX call value in Sun')
     .option('--abi <json>', 'Optional router ABI as JSON array')
     .action(async (opts) => {
-      await writeAction({
+      await writeRuntimeAction({
         title: 'SwapExactInput',
         summary: {
           Router: opts.router,

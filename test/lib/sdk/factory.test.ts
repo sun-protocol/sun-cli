@@ -29,4 +29,13 @@ describe('SDK factory', () => {
       'Unsupported SDK network: shasta',
     )
   })
+
+  it('uses the legacy Shasta RPC for generic calls without configuring SUN protocol contracts', async () => {
+    const { createGenericRuntime, createReadonlyTronWeb } = require('../../../src/lib/sdk/factory')
+    const tronWeb = createReadonlyTronWeb({ network: 'shasta' })
+    expect(tronWeb.fullNode.host).toBe('https://api.shasta.trongrid.io')
+    const runtime = await createGenericRuntime({ network: 'shasta' })
+    expect(runtime.network).toBe('shasta')
+    expect(runtime.chain).toBeUndefined()
+  })
 })

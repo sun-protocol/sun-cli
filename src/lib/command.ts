@@ -2,7 +2,8 @@
  * Command helpers — eliminate boilerplate in write/read command handlers.
  */
 
-import { getKit, getApi, ensureWallet } from './context'
+import { getKit, getApi, getRuntime, ensureWallet } from './context'
+import type { ContractRuntime } from '@sun-protocol/sun-sdk-runtime'
 import {
   output,
   outputError,
@@ -168,7 +169,7 @@ export function parseApiResponse<T = unknown>(
 // writeAction — for state-changing commands (swap, liquidity, contract:send)
 // ---------------------------------------------------------------------------
 
-export interface WriteActionOpts<T = any> {
+export interface WriteActionOpts<T = any, Client = CliSunSDK> {
   /** Title shown in the pre-execution summary */
   title: string
   /** Key-value pairs displayed in summary */
@@ -178,7 +179,7 @@ export interface WriteActionOpts<T = any> {
   /** Spinner label during execution */
   spinnerLabel: string
   /** The async operation that calls kit methods */
-  execute: (kit: CliSunSDK) => Promise<T>
+  execute: (kit: Client) => Promise<T>
   /** Error label prefix for outputError */
   errorLabel: string
   /** Optional post-success callback (e.g. extra human-friendly output) */
@@ -188,6 +189,19 @@ export interface WriteActionOpts<T = any> {
 }
 
 export async function writeAction<T>(opts: WriteActionOpts<T>): Promise<void> {
+  return runWriteAction(opts, getKit)
+}
+
+export async function writeRuntimeAction<T>(
+  opts: WriteActionOpts<T, { runtime: ContractRuntime }>,
+): Promise<void> {
+  return runWriteAction(opts, async () => ({ runtime: await getRuntime() }))
+}
+
+async function runWriteAction<T, Client>(
+  opts: WriteActionOpts<T, Client>,
+  getClient: () => Promise<Client>,
+): Promise<void> {
   try {
     if (_dryRun) {
       output({ dryRun: true, action: opts.title, params: opts.summary })
@@ -195,7 +209,7 @@ export async function writeAction<T>(opts: WriteActionOpts<T>): Promise<void> {
     }
 
     await ensureWallet()
-    const kit = await getKit()
+    const kit = await getClient()
     const network =
       typeof opts.summary.Network === 'string' ? String(opts.summary.Network) : undefined
 
@@ -231,11 +245,11 @@ export async function writeAction<T>(opts: WriteActionOpts<T>): Promise<void> {
 // readAction — for read commands that need the protocol SDK runtime (balances, contract:read)
 // ---------------------------------------------------------------------------
 
-export interface ReadActionOpts<T = any> {
+export interface ReadActionOpts<T = any, Client = CliSunSDK> {
   /** Spinner label */
   spinnerLabel: string
   /** The async operation */
-  execute: (kit: CliSunSDK) => Promise<T>
+  execute: (kit: Client) => Promise<T>
   /** Table config for human-readable output */
   tableConfig?: { headers: string[]; toRow: (item: any) => string[] }
   /** Error label prefix */
@@ -245,8 +259,21 @@ export interface ReadActionOpts<T = any> {
 }
 
 export async function readAction<T>(opts: ReadActionOpts<T>): Promise<void> {
+  return runReadAction(opts, getKit)
+}
+
+export async function readRuntimeAction<T>(
+  opts: ReadActionOpts<T, { runtime: ContractRuntime }>,
+): Promise<void> {
+  return runReadAction(opts, async () => ({ runtime: await getRuntime() }))
+}
+
+async function runReadAction<T, Client>(
+  opts: ReadActionOpts<T, Client>,
+  getClient: () => Promise<Client>,
+): Promise<void> {
   try {
-    const kit = await getKit()
+    const kit = await getClient()
 
     const result = await withSpinner(opts.spinnerLabel, () => opts.execute(kit))
     const data = opts.transform ? opts.transform(result) : result

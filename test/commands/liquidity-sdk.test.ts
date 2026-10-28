@@ -23,6 +23,14 @@ describe('liquidity SDK integration', () => {
       readAction: jest.fn().mockResolvedValue(undefined),
     }))
     jest.doMock('../../src/lib/context', () => ({ getNetwork: () => 'nile' }))
+    jest.doMock('../../src/lib/sdk/liquidity-v3', () => ({
+      resolveLegacyV3Pool: async () => ({
+        sqrtRatioX96: '79228162514264337593543950336',
+        liquidity: '1000000',
+        tickCurrent: 0,
+        tickSpacing: 60,
+      }),
+    }))
 
     const { registerLiquidityCommands } = require('../../src/commands/liquidity')
     const program = new Command()
@@ -32,6 +40,34 @@ describe('liquidity SDK integration', () => {
 
     return writeAction.mock.calls[0][0]
   }
+
+  it('retains partial V3 tick ranges and zero default minima from the legacy CLI', async () => {
+    const action = await captureWriteAction([
+      'v3:mint',
+      '--token0',
+      'SUN',
+      '--token1',
+      'USDT',
+      '--tick-lower',
+      '-600',
+      '--amount0',
+      '1000',
+    ])
+    const execute = jest.fn().mockResolvedValue({ txids: ['mint-tx'] })
+    await action.execute({ liquidity: { v3: { add: { execute } } } })
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tickLower: -600,
+        tickUpper: undefined,
+        tickRangeMode: 'legacy',
+        tickRangeWidth: 100,
+        amountInputMode: 'legacy-cli',
+        ttlSeconds: 1800,
+        amount0Min: '0',
+        amount1Min: '0',
+      }),
+    )
+  })
 
   it('passes V2 remove minimum amounts to the SDK', async () => {
     const action = await captureWriteAction([
@@ -175,10 +211,11 @@ describe('liquidity SDK integration', () => {
         tickLower: 11350,
         tickUpper: 13350,
         amount0: '100',
-        owner: 'TOwner',
+        recipient: 'TOwner',
+        sweepRecipient: 'TOwner',
       }),
     )
-    expect(execute.mock.calls[0][0]).not.toHaveProperty('recipient')
+    expect(execute.mock.calls[0][0]).not.toHaveProperty('owner')
   })
 
   it('preserves explicit V4 fees and tick zero without an automatic pool read', async () => {
@@ -275,7 +312,7 @@ describe('liquidity SDK integration', () => {
     })
   })
 
-  it('lets the SDK derive V4 pool context from tokenId for increase', async () => {
+  it('retains V4 input pair, fee, legacy slippage units and amount completion for increase', async () => {
     const action = await captureWriteAction([
       'v4:increase',
       '--token-id',
@@ -294,9 +331,18 @@ describe('liquidity SDK integration', () => {
     await action.execute({ liquidity: { v4: { increase: { execute } } } })
     expect(execute).toHaveBeenCalledWith({
       tokenId: '7',
+      token0: 'TWrZRHY9aKQZcyjpovdH6qeCEyYZrRQDZt',
+      token1: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf',
+      fee: 500,
+      tickSpacing: 10,
       amount0: undefined,
       amount1: '200',
-      slippage: '1%',
+      slippage: '0.01%',
+      amountInputMode: 'legacy-cli',
+      includeComputedMetadata: true,
+      roundingMode: 'floor',
+      transactionMode: 'multicall',
+      ttlSeconds: 1800,
       deadline: undefined,
     })
   })
@@ -319,14 +365,18 @@ describe('liquidity SDK integration', () => {
     ])
     const remove = jest.fn().mockResolvedValue({ txids: ['remove-tx'] })
     await removeAction.execute({ positions: { v4: { remove: { execute: remove } } } })
-    expect(remove).toHaveBeenCalledWith({
-      tokenId: '7',
-      liquidity: '10',
-      amount0Min: '1',
-      amount1Min: undefined,
-      slippage: undefined,
-      deadline: undefined,
-    })
+    expect(remove).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tokenId: '7',
+        liquidity: '10',
+        amount0Min: '1',
+        amount1Min: '0',
+        poolKey: expect.objectContaining({ fee: 500 }),
+        transactionMode: 'multicall',
+        settlementMode: 'close-currency',
+        deadline: undefined,
+      }),
+    )
 
     const collectAction = await captureWriteAction([
       'v4:collect',
@@ -341,6 +391,13 @@ describe('liquidity SDK integration', () => {
     ])
     const collect = jest.fn().mockResolvedValue({ txids: ['collect-tx'] })
     await collectAction.execute({ positions: { v4: { collect: { execute: collect } } } })
-    expect(collect).toHaveBeenCalledWith({ tokenId: '7', deadline: undefined })
+    expect(collect).toHaveBeenCalledWith({
+      tokenId: '7',
+      deadline: undefined,
+      poolKey: expect.objectContaining({ fee: 500 }),
+      transactionMode: 'multicall',
+      settlementMode: 'close-currency',
+      ttlSeconds: 1800,
+    })
   })
 })

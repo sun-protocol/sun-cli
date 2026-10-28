@@ -1,6 +1,6 @@
 import { Command } from 'commander'
 import { getNetwork } from '../lib/context'
-import { readAction } from '../lib/command'
+import { readRuntimeAction as readAction } from '../lib/command'
 import { getWalletAddress, initWallet } from '../lib/wallet'
 import { output, outputError } from '../lib/output'
 import { readBalances } from '@sun-protocol/sun-sdk-runtime'
