@@ -3,54 +3,116 @@ import { getNetwork } from '../lib/context'
 import { writeAction, readAction } from '../lib/command'
 import { withSpinner } from '../lib/output'
 import { resolveTokenAddress, getSymbolOrAddress } from '../lib/tokens'
+import { getContractAddress } from '@sun-protocol/sun-sdk-chains'
+import type { Network } from '@sun-protocol/sun-sdk-core'
+import { TronWeb } from 'tronweb'
 import {
-  SUNSWAP_V2_MAINNET_ROUTER,
-  SUNSWAP_V2_NILE_ROUTER,
-  SUNSWAP_V2_MAINNET_FACTORY,
-  SUNSWAP_V2_NILE_FACTORY,
-  SUNSWAP_V2_FACTORY_MIN_ABI,
-  SUNSWAP_V2_PAIR_MIN_ABI,
-  SUNSWAP_V3_MAINNET_POSITION_MANAGER,
-  SUNSWAP_V3_NILE_POSITION_MANAGER,
+  DEFAULT_V3_FEE,
+  DEFAULT_V4_FEE,
   TRX_ADDRESS,
   WTRX_MAINNET,
   WTRX_NILE,
-  createReadonlyTronWeb,
-} from '@sun-protocol/sun-kit'
+} from '../lib/sdk/constants'
+import { createReadonlyTronWeb, withLiquidityAbi } from '../lib/sdk/factory'
+import { toCliTxResult } from '../lib/sdk/compat'
+import { resolveLegacyV3Pool } from '../lib/sdk/liquidity-v3'
+import { resolveV4MintTicks, v4TickSpacingForFee, v4PoolKeyFromCli } from '../lib/sdk/liquidity-v4'
 
-const V2_ROUTERS: Record<string, string> = {
-  mainnet: SUNSWAP_V2_MAINNET_ROUTER,
-  nile: SUNSWAP_V2_NILE_ROUTER,
-}
+const SUNSWAP_V2_FACTORY_MIN_ABI = [
+  {
+    constant: true,
+    inputs: [
+      { name: 'tokenA', type: 'address' },
+      { name: 'tokenB', type: 'address' },
+    ],
+    name: 'getPair',
+    outputs: [{ name: 'pair', type: 'address' }],
+    type: 'function',
+  },
+]
 
-const V2_FACTORIES: Record<string, string> = {
-  mainnet: SUNSWAP_V2_MAINNET_FACTORY,
-  nile: SUNSWAP_V2_NILE_FACTORY,
-}
+const SUNSWAP_V2_PAIR_MIN_ABI = [
+  {
+    constant: true,
+    inputs: [],
+    name: 'getReserves',
+    outputs: [
+      { name: '_reserve0', type: 'uint112' },
+      { name: '_reserve1', type: 'uint112' },
+      { name: '_blockTimestampLast', type: 'uint32' },
+    ],
+    type: 'function',
+  },
+  {
+    constant: true,
+    inputs: [],
+    name: 'token0',
+    outputs: [{ name: '', type: 'address' }],
+    type: 'function',
+  },
+]
 
-const V3_POSITION_MANAGERS: Record<string, string> = {
-  mainnet: SUNSWAP_V3_MAINNET_POSITION_MANAGER,
-  nile: SUNSWAP_V3_NILE_POSITION_MANAGER,
+function assertSdkNetwork(network: string): Network {
+  if (network === 'mainnet' || network === 'nile') return network
+  throw new Error(`Unsupported SDK network: ${network}`)
 }
 
 function getV2Router(network: string, override?: string): string {
   if (override) return override
-  const router = V2_ROUTERS[network]
-  if (!router) {
-    throw new Error(`V2 router not configured for network: ${network}. Use --router to specify.`)
-  }
-  return router
+  return getContractAddress(assertSdkNetwork(network), 'sunswapV2Router')
 }
 
 function getV3PositionManager(network: string, override?: string): string {
   if (override) return override
-  const pm = V3_POSITION_MANAGERS[network]
-  if (!pm) {
-    throw new Error(
-      `V3 position manager not configured for network: ${network}. Use --pm to specify.`,
-    )
+  return getContractAddress(assertSdkNetwork(network), 'sunswapV3PositionManager')
+}
+
+function getV2Factory(network: string): string {
+  return getContractAddress(assertSdkNetwork(network), 'sunswapV2Factory')
+}
+
+// SunKit V4 interpreted this existing CLI value as percent, despite its help text.
+// Keep that historical interpretation and integer rounding during migration.
+function legacyV4MaximumSlippage(value: string | undefined): `${number}%` {
+  const percent = value === undefined ? 0 : parseFloat(value)
+  const bips = percent > 0 ? Math.floor((100 + percent) * 100) - 10_000 : 0
+  return `${bips / 100}%`
+}
+
+function legacyV4Minimum(value: string | undefined, slippage: string | undefined): string {
+  const amount = BigInt(value ?? '0')
+  const percent = slippage === undefined ? 0 : parseFloat(slippage)
+  return percent > 0
+    ? ((amount * BigInt(Math.floor((100 - percent) * 100))) / 10_000n).toString()
+    : amount.toString()
+}
+
+function toV3PoolOrder<T>(token0: string, token1: string, value0: T, value1: T): [T, T] {
+  const token0Hex = TronWeb.address.toHex(token0).toLowerCase()
+  const token1Hex = TronWeb.address.toHex(token1).toLowerCase()
+  return token0Hex < token1Hex ? [value0, value1] : [value1, value0]
+}
+
+function withContracts(
+  overrides: Record<string, string | undefined>,
+): Record<string, string> | undefined {
+  const entries = Object.entries(overrides).filter((entry): entry is [string, string] => !!entry[1])
+  return entries.length ? Object.fromEntries(entries) : undefined
+}
+
+function mapTx(result: unknown, reverseAmounts = false): unknown {
+  const mapped = toCliTxResult(result) as Record<string, unknown>
+  const amounts = mapped?.computedAmounts as
+    | { amount0Desired: string; amount1Desired: string }
+    | undefined
+  if (!reverseAmounts || !amounts) return mapped
+  return {
+    ...mapped,
+    computedAmounts: {
+      amount0Desired: amounts.amount1Desired,
+      amount1Desired: amounts.amount0Desired,
+    },
   }
-  return pm
 }
 
 function toWTRXIfNative(tokenAddress: string, network: string): string {
@@ -74,23 +136,40 @@ interface PairReserves {
   pairExists: boolean
 }
 
+export function unwrapContractAddressResult(result: unknown, label: string): string {
+  const value = Array.isArray(result)
+    ? result[0]
+    : result && typeof result === 'object'
+      ? Object.values(result as Record<string, unknown>)[0]
+      : result
+  if (typeof value !== 'string') throw new Error(`${label} did not return an address`)
+  return value
+}
+
+function toBase58ContractAddress(
+  tronWeb: ReturnType<typeof createReadonlyTronWeb>,
+  result: unknown,
+  label: string,
+): string {
+  const value = unwrapContractAddressResult(result, label)
+  if (value.startsWith('T')) return value
+  return tronWeb.address.fromHex(value.startsWith('0x') ? `41${value.slice(2)}` : value)
+}
+
 async function getV2PairReserves(
   network: string,
   tokenA: string,
   tokenB: string,
 ): Promise<PairReserves> {
-  const tronWeb = await createReadonlyTronWeb(network)
-  const factoryAddress = V2_FACTORIES[network]
-  if (!factoryAddress) {
-    throw new Error(`V2 factory not configured for network: ${network}`)
-  }
+  const tronWeb = createReadonlyTronWeb({ network })
+  const factoryAddress = getV2Factory(network)
 
   const lookupA = getLookupToken(tokenA, network)
   const lookupB = getLookupToken(tokenB, network)
 
   const factory = await tronWeb.contract(SUNSWAP_V2_FACTORY_MIN_ABI as any, factoryAddress)
-  const pairHex = await factory.getPair(lookupA, lookupB).call()
-  const pairBase58 = tronWeb.address.fromHex(pairHex)
+  const pairResult = await factory.getPair(lookupA, lookupB).call()
+  const pairBase58 = toBase58ContractAddress(tronWeb, pairResult, 'V2 factory getPair')
   const zeroBase58 = tronWeb.address.fromHex('410000000000000000000000000000000000000000')
 
   if (!pairBase58 || pairBase58 === zeroBase58) {
@@ -99,9 +178,9 @@ async function getV2PairReserves(
 
   const pair = await tronWeb.contract(SUNSWAP_V2_PAIR_MIN_ABI as any, pairBase58)
   const reserves = await pair.getReserves().call()
-  const token0Hex = await pair.token0().call()
+  const token0Result = await pair.token0().call()
 
-  const token0 = tronWeb.address.fromHex(token0Hex)
+  const token0 = toBase58ContractAddress(tronWeb, token0Result, 'V2 pair token0')
   const reserve0 = (reserves._reserve0 ?? reserves[0]).toString()
   const reserve1 = (reserves._reserve1 ?? reserves[1]).toString()
 
@@ -212,20 +291,21 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Add V2 liquidity?',
         spinnerLabel: 'Adding V2 liquidity...',
         errorLabel: 'V2 add liquidity failed',
-        execute: (kit) =>
-          kit.addLiquidityV2({
-            network,
-            routerAddress: router,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
-            tokenA,
-            tokenB,
-            amountADesired: amountA,
-            amountBDesired: amountB,
-            amountAMin: opts.minA,
-            amountBMin: opts.minB,
-            to: opts.to,
-            deadline: opts.deadline,
-          }),
+        execute: async (client) =>
+          (await withLiquidityAbi(client, router, opts.abi)).liquidity.v2.add
+            .execute({
+              contracts: withContracts({ sunswapV2Router: router }),
+              tokenA,
+              tokenB,
+              amountADesired: amountA,
+              amountBDesired: amountB,
+              amountAMin: opts.minA,
+              amountBMin: opts.minB,
+              recipient: opts.to,
+              ttlSeconds: 1800,
+              deadline: opts.deadline,
+            })
+            .then((result) => mapTx(result)),
       })
     })
 
@@ -270,19 +350,20 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Remove V2 liquidity?',
         spinnerLabel: 'Removing V2 liquidity...',
         errorLabel: 'V2 remove liquidity failed',
-        execute: (kit) =>
-          kit.removeLiquidityV2({
-            network,
-            routerAddress: router,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
-            tokenA,
-            tokenB,
-            liquidity: opts.liquidity,
-            amountAMin: opts.minA,
-            amountBMin: opts.minB,
-            to: opts.to,
-            deadline: opts.deadline,
-          }),
+        execute: async (sdk) =>
+          (await withLiquidityAbi(sdk, router, opts.abi)).liquidity.v2.remove
+            .execute({
+              contracts: withContracts({ sunswapV2Router: router }),
+              tokenA,
+              tokenB,
+              liquidity: opts.liquidity,
+              amountAMin: opts.minA,
+              amountBMin: opts.minB,
+              recipient: opts.to,
+              ttlSeconds: 1800,
+              deadline: opts.deadline,
+            })
+            .then((result) => mapTx(result)),
       })
     })
 
@@ -296,7 +377,7 @@ export function registerLiquidityCommands(program: Command) {
     .option('--pm <address>', 'V3 NonfungiblePositionManager address (auto-detected by network)')
     .requiredOption('--token0 <tokenOrAddress>', 'Token0 (symbol like TRX/USDT or address)')
     .requiredOption('--token1 <tokenOrAddress>', 'Token1 (symbol like TRX/USDT or address)')
-    .option('--fee <n>', 'Pool fee tier (default: 3000)')
+    .option('--fee <n>', `Pool fee tier (default: ${DEFAULT_V3_FEE})`)
     .option('--tick-lower <n>', 'Lower tick (auto-computed if omitted)')
     .option('--tick-upper <n>', 'Upper tick (auto-computed if omitted)')
     .option('--amount0 <raw>', 'Desired amount of token0')
@@ -336,6 +417,8 @@ export function registerLiquidityCommands(program: Command) {
 
       const tickRange =
         opts.tickLower && opts.tickUpper ? `[${opts.tickLower}, ${opts.tickUpper}]` : '(auto)'
+      const [amount0, amount1] = toV3PoolOrder(token0, token1, opts.amount0, opts.amount1)
+      const [amount0Min, amount1Min] = toV3PoolOrder(token0, token1, opts.min0, opts.min1)
 
       await writeAction({
         title: 'V3 Mint Position',
@@ -343,7 +426,7 @@ export function registerLiquidityCommands(program: Command) {
           'Position Manager': pm,
           Token0: `${token0Display}${token0Note} (${token0})`,
           Token1: `${token1Display}${token1Note} (${token1})`,
-          Fee: opts.fee || '3000 (default)',
+          Fee: opts.fee || `${DEFAULT_V3_FEE} (default)`,
           'Tick Range': tickRange,
           Amount0: opts.amount0 || '(auto)',
           Amount1: opts.amount1 || '(auto)',
@@ -352,23 +435,35 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Mint V3 position?',
         spinnerLabel: 'Minting V3 position...',
         errorLabel: 'V3 mint failed',
-        execute: (kit) =>
-          kit.mintPositionV3({
-            network,
-            positionManagerAddress: pm,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
-            token0,
-            token1,
-            fee: opts.fee ? parseInt(opts.fee) : undefined,
-            tickLower: opts.tickLower ? parseInt(opts.tickLower) : undefined,
-            tickUpper: opts.tickUpper ? parseInt(opts.tickUpper) : undefined,
-            amount0Desired: opts.amount0,
-            amount1Desired: opts.amount1,
-            amount0Min: opts.min0,
-            amount1Min: opts.min1,
-            recipient: opts.recipient,
-            deadline: opts.deadline,
-          }),
+        execute: async (sdk) =>
+          (await withLiquidityAbi(sdk, pm, opts.abi)).liquidity.v3.add
+            .execute({
+              contracts: withContracts({ sunswapV3PositionManager: pm }),
+              tokenA: token0,
+              tokenB: token1,
+              fee: opts.fee ? parseInt(opts.fee) : DEFAULT_V3_FEE,
+              pool: await resolveLegacyV3Pool(sdk, {
+                token0,
+                token1,
+                fee: opts.fee ? parseInt(opts.fee) : DEFAULT_V3_FEE,
+              }),
+              tickLower: opts.tickLower ? parseInt(opts.tickLower) : undefined,
+              tickUpper: opts.tickUpper ? parseInt(opts.tickUpper) : undefined,
+              tickRangeMode: 'legacy',
+              amountInputMode: 'legacy-cli',
+              includeComputedMetadata: true,
+              tickRangeWidth:
+                opts.tickLower === undefined || opts.tickUpper === undefined ? 100 : undefined,
+              amount0,
+              amount1,
+              // Legacy V3 defaults are zero, not the SDK's slippage-derived minima.
+              amount0Min: amount0Min ?? '0',
+              amount1Min: amount1Min ?? '0',
+              recipient: opts.recipient,
+              ttlSeconds: 1800,
+              deadline: opts.deadline,
+            })
+            .then((result) => mapTx(result, toV3PoolOrder(token0, token1, false, true)[0])),
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.computedTicks) {
@@ -418,18 +513,38 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Increase V3 liquidity?',
         spinnerLabel: 'Increasing V3 liquidity...',
         errorLabel: 'V3 increase liquidity failed',
-        execute: (kit) =>
-          kit.increaseLiquidityV3({
-            network,
-            positionManagerAddress: pm,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
-            tokenId: opts.tokenId,
-            amount0Desired: opts.amount0,
-            amount1Desired: opts.amount1,
-            amount0Min: opts.min0,
-            amount1Min: opts.min1,
-            deadline: opts.deadline,
-          }),
+        execute: async (sdk) =>
+          (
+            await withLiquidityAbi(
+              sdk,
+              pm,
+              opts.abi,
+              BigInt(opts.amount0 ?? '0') === 0n || BigInt(opts.amount1 ?? '0') === 0n
+                ? ['positions(uint256)']
+                : [],
+            )
+          ).liquidity.v3.increase
+            .execute({
+              contracts: withContracts({ sunswapV3PositionManager: pm }),
+              tokenId: opts.tokenId,
+              amount0: opts.amount0,
+              amount1: opts.amount1,
+              amountInputMode: 'legacy-cli',
+              includeComputedMetadata: true,
+              pool:
+                BigInt(opts.amount0 ?? '0') === 0n || BigInt(opts.amount1 ?? '0') === 0n
+                  ? await resolveLegacyV3Pool(sdk, {
+                      tokenId: opts.tokenId,
+                      positionManager: pm,
+                      positionAbi: opts.abi,
+                    })
+                  : undefined,
+              amount0Min: opts.min0 ?? '0',
+              amount1Min: opts.min1 ?? '0',
+              ttlSeconds: 1800,
+              deadline: opts.deadline,
+            })
+            .then(mapTx),
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.computedAmounts) {
@@ -467,17 +582,19 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Decrease V3 liquidity?',
         spinnerLabel: 'Decreasing V3 liquidity...',
         errorLabel: 'V3 decrease liquidity failed',
-        execute: (kit) =>
-          kit.decreaseLiquidityV3({
-            network,
-            positionManagerAddress: pm,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
-            tokenId: opts.tokenId,
-            liquidity: opts.liquidity,
-            amount0Min: opts.min0,
-            amount1Min: opts.min1,
-            deadline: opts.deadline,
-          }),
+        execute: async (sdk) =>
+          (await withLiquidityAbi(sdk, pm, opts.abi)).positions.v3.remove
+            .execute({
+              contracts: withContracts({ sunswapV3PositionManager: pm }),
+              tokenId: opts.tokenId,
+              liquidity: opts.liquidity,
+              amount0Min: opts.min0 ?? '0',
+              amount1Min: opts.min1 ?? '0',
+              collectFees: false,
+              ttlSeconds: 1800,
+              deadline: opts.deadline,
+            })
+            .then(mapTx),
       })
     })
 
@@ -503,14 +620,15 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Collect V3 fees?',
         spinnerLabel: 'Collecting V3 fees...',
         errorLabel: 'V3 collect failed',
-        execute: (kit) =>
-          kit.collectPositionV3({
-            network,
-            positionManagerAddress: pm,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
-            tokenId: opts.tokenId,
-            recipient: opts.recipient,
-          }),
+        execute: async (sdk) =>
+          (await withLiquidityAbi(sdk, pm, opts.abi)).positions.v3.collect
+            .execute({
+              contracts: withContracts({ sunswapV3PositionManager: pm }),
+              tokenId: opts.tokenId,
+              recipient: opts.recipient,
+              estimateFees: true,
+            })
+            .then(mapTx),
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.estimatedFees) {
@@ -532,7 +650,7 @@ export function registerLiquidityCommands(program: Command) {
     .description('Mint a new SUNSWAP V4 concentrated liquidity position')
     .requiredOption('--token0 <tokenOrAddress>', 'Token0 (symbol like TRX/USDT or address)')
     .requiredOption('--token1 <tokenOrAddress>', 'Token1 (symbol like TRX/USDT or address)')
-    .option('--fee <n>', 'Pool fee tier (e.g. 500)')
+    .option('--fee <n>', `Pool fee tier (default: ${DEFAULT_V4_FEE})`)
     .option('--tick-lower <n>', 'Lower tick (auto-computed if omitted)')
     .option('--tick-upper <n>', 'Upper tick (auto-computed if omitted)')
     .option('--amount0 <raw>', 'Desired amount of token0')
@@ -562,15 +680,26 @@ export function registerLiquidityCommands(program: Command) {
       const token1Display = getSymbolOrAddress(token1Input, network)
       const token0Note = token0 !== token0Input ? ` → WTRX` : ''
       const token1Note = token1 !== token1Input ? ` → WTRX` : ''
+      const fee = opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE
+      const tickLower = opts.tickLower !== undefined ? parseInt(opts.tickLower) : undefined
+      const tickUpper = opts.tickUpper !== undefined ? parseInt(opts.tickUpper) : undefined
+
+      if (!opts.amount0 && !opts.amount1) {
+        console.error('Error: At least one of --amount0 or --amount1 is required')
+        process.exitCode = 1
+        return
+      }
 
       await writeAction({
         title: 'V4 Mint Position',
         summary: {
           Token0: `${token0Display}${token0Note} (${token0})`,
           Token1: `${token1Display}${token1Note} (${token1})`,
-          Fee: opts.fee || '(auto)',
+          Fee: opts.fee || `${DEFAULT_V4_FEE} (default)`,
           'Tick Range':
-            opts.tickLower && opts.tickUpper ? `[${opts.tickLower}, ${opts.tickUpper}]` : '(auto)',
+            tickLower !== undefined && tickUpper !== undefined
+              ? `[${tickLower}, ${tickUpper}]`
+              : '(auto)',
           Amount0: opts.amount0 || '(auto)',
           Amount1: opts.amount1 || '(auto)',
           Slippage: opts.slippage
@@ -582,22 +711,42 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Mint V4 position?',
         spinnerLabel: 'Minting V4 position...',
         errorLabel: 'V4 mint failed',
-        execute: (kit) =>
-          kit.mintPositionV4({
-            network,
+        execute: async (sdk) => {
+          const ticks = await resolveV4MintTicks(sdk, {
             token0,
             token1,
-            fee: opts.fee ? parseInt(opts.fee) : undefined,
-            tickLower: opts.tickLower ? parseInt(opts.tickLower) : undefined,
-            tickUpper: opts.tickUpper ? parseInt(opts.tickUpper) : undefined,
-            amount0Desired: opts.amount0,
-            amount1Desired: opts.amount1,
-            slippage: opts.slippage ? parseFloat(opts.slippage) : undefined,
-            recipient: opts.recipient,
-            deadline: opts.deadline,
+            fee,
+            tickLower,
+            tickUpper,
             sqrtPriceX96: opts.sqrtPrice,
-            createPoolIfNeeded: opts.createPool,
-          }),
+            createPool: opts.createPool,
+          })
+          return sdk.liquidity.v4.add
+            .execute({
+              token0,
+              token1,
+              fee,
+              ...ticks,
+              amount0: opts.amount0,
+              amount1: opts.amount1,
+              slippage: legacyV4MaximumSlippage(opts.slippage),
+              roundingMode: 'floor',
+              amountInputMode: 'legacy-cli',
+              includeComputedMetadata: true,
+              transactionMode: 'multicall',
+              recipient: opts.recipient,
+              sweepRecipient: opts.recipient,
+              ttlSeconds: 1800,
+              deadline: opts.deadline,
+              sqrtPriceX96: opts.sqrtPrice,
+            })
+            .then((result) => {
+              const mapped = mapTx(result) as Record<string, unknown>
+              return tickLower === undefined || tickUpper === undefined
+                ? { ...mapped, computedTicks: ticks }
+                : mapped
+            })
+        },
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.poolCreated !== undefined) out['Pool Created'] = result.poolCreated
@@ -645,6 +794,12 @@ export function registerLiquidityCommands(program: Command) {
       const token0Display = getSymbolOrAddress(token0Input, network)
       const token1Display = getSymbolOrAddress(token1Input, network)
 
+      if (!opts.amount0 && !opts.amount1) {
+        console.error('Error: At least one of --amount0 or --amount1 is required')
+        process.exitCode = 1
+        return
+      }
+
       await writeAction({
         title: 'V4 Increase Liquidity',
         summary: {
@@ -658,18 +813,25 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Increase V4 liquidity?',
         spinnerLabel: 'Increasing V4 liquidity...',
         errorLabel: 'V4 increase liquidity failed',
-        execute: (kit) =>
-          kit.increaseLiquidityV4({
-            network,
-            tokenId: opts.tokenId,
-            token0,
-            token1,
-            fee: opts.fee ? parseInt(opts.fee) : undefined,
-            amount0Desired: opts.amount0,
-            amount1Desired: opts.amount1,
-            slippage: opts.slippage ? parseFloat(opts.slippage) : undefined,
-            deadline: opts.deadline,
-          }),
+        execute: (sdk) =>
+          sdk.liquidity.v4.increase
+            .execute({
+              tokenId: opts.tokenId,
+              token0,
+              token1,
+              fee: opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE,
+              tickSpacing: v4TickSpacingForFee(opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE),
+              amount0: opts.amount0,
+              amount1: opts.amount1,
+              slippage: legacyV4MaximumSlippage(opts.slippage),
+              roundingMode: 'floor',
+              amountInputMode: 'legacy-cli',
+              includeComputedMetadata: true,
+              transactionMode: 'multicall',
+              ttlSeconds: 1800,
+              deadline: opts.deadline,
+            })
+            .then(mapTx),
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.computedAmounts) {
@@ -725,19 +887,26 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Decrease V4 liquidity?',
         spinnerLabel: 'Decreasing V4 liquidity...',
         errorLabel: 'V4 decrease liquidity failed',
-        execute: (kit) =>
-          kit.decreaseLiquidityV4({
-            network,
-            tokenId: opts.tokenId,
-            liquidity: opts.liquidity,
-            token0,
-            token1,
-            fee: opts.fee ? parseInt(opts.fee) : undefined,
-            amount0Min: opts.min0,
-            amount1Min: opts.min1,
-            slippage: opts.slippage ? parseFloat(opts.slippage) : undefined,
-            deadline: opts.deadline,
-          }),
+        execute: (sdk) =>
+          sdk.positions.v4.remove
+            .execute({
+              tokenId: opts.tokenId,
+              liquidity: opts.liquidity,
+              poolKey: v4PoolKeyFromCli(
+                assertSdkNetwork(network),
+                token0,
+                token1,
+                opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE,
+              ),
+              amount0Min: legacyV4Minimum(opts.min0, opts.slippage),
+              amount1Min: legacyV4Minimum(opts.min1, opts.slippage),
+              includeComputedMetadata: true,
+              transactionMode: 'multicall',
+              settlementMode: 'close-currency',
+              ttlSeconds: 1800,
+              deadline: opts.deadline,
+            })
+            .then(mapTx),
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.computedAmountMin) {
@@ -794,15 +963,26 @@ export function registerLiquidityCommands(program: Command) {
         confirmMsg: 'Collect V4 fees?',
         spinnerLabel: 'Collecting V4 fees...',
         errorLabel: 'V4 collect failed',
-        execute: (kit) =>
-          kit.collectPositionV4({
-            network,
-            tokenId: opts.tokenId,
-            token0,
-            token1,
-            fee: opts.fee ? parseInt(opts.fee) : undefined,
-            deadline: opts.deadline,
-          }),
+        execute: (sdk) =>
+          sdk.positions.v4.collect
+            .execute({
+              tokenId: opts.tokenId,
+              ...(token0 && token1
+                ? {
+                    poolKey: v4PoolKeyFromCli(
+                      assertSdkNetwork(network),
+                      token0,
+                      token1,
+                      opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE,
+                    ),
+                  }
+                : {}),
+              transactionMode: 'multicall',
+              settlementMode: 'close-currency',
+              ttlSeconds: 1800,
+              deadline: opts.deadline,
+            })
+            .then(mapTx),
       })
     })
 
@@ -815,14 +995,21 @@ export function registerLiquidityCommands(program: Command) {
       await readAction({
         spinnerLabel: 'Fetching V4 position info...',
         errorLabel: 'V4 position info failed',
-        execute: (kit) => kit.getV4PositionInfo(opts.pm, opts.tokenId, getNetwork()),
-        transform: (result) => {
+        execute: (sdk) =>
+          sdk.positions.v4.read({
+            tokenId: opts.tokenId,
+            contracts: withContracts({ sunswapV4PositionManager: opts.pm }),
+          }),
+        transform: (result: any) => {
           if (!result) return { error: 'Position not found' }
+          const fee = result.poolKey?.fee
           return {
-            currency0: result.poolKey.currency0,
-            currency1: result.poolKey.currency1,
-            fee: result.poolKey.fee,
-            tickSpacing: result.poolKey.tickSpacing,
+            currency0: result.poolKey?.currency0,
+            currency1: result.poolKey?.currency1,
+            fee: fee === undefined ? undefined : String(fee),
+            tickSpacing:
+              result.poolKey?.tickSpacing ??
+              (Number.isFinite(Number(fee)) ? v4TickSpacingForFee(Number(fee)) : undefined),
             tickLower: result.tickLower,
             tickUpper: result.tickUpper,
             liquidity: result.liquidity,

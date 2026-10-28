@@ -1,8 +1,9 @@
 import { Command } from 'commander'
 import { getNetwork } from '../lib/context'
-import { writeAction, readAction } from '../lib/command'
+import { writeAction, writeRuntimeAction, readRuntimeAction as readAction } from '../lib/command'
 import { isJsonMode, output, outputError, withSpinner } from '../lib/output'
 import { resolveTokenAddress, getSymbolOrAddress } from '../lib/tokens'
+import { toCliTxResult } from '../lib/sdk/compat'
 
 const ROUTER_API: Record<string, string> = {
   mainnet: 'https://rot.endjgfsv.link',
@@ -15,6 +16,18 @@ interface RouteData {
   symbols: string[]
   poolVersions: string[]
   impact: string
+}
+
+function selectSwapRoute(quote: any): any {
+  return quote.bestRoute ?? quote.route ?? quote.routes?.[0]
+}
+
+function cliSlippageToSdk(value: number): `${number}%` {
+  return `${value * 100}%` as `${number}%`
+}
+
+function parseAbi(value: string | undefined): any[] | undefined {
+  return value === undefined ? undefined : JSON.parse(value)
 }
 
 async function fetchSwapQuote(
@@ -87,7 +100,28 @@ export function registerSwapCommands(program: Command) {
         confirmMsg: 'Execute this swap?',
         spinnerLabel: 'Executing swap...',
         errorLabel: 'Swap failed',
-        execute: (kit) => kit.swap({ tokenIn, tokenOut, amountIn, slippage, network }),
+        execute: async (sdk) => {
+          const quote = await sdk.swap.router.quote({ tokenIn, tokenOut, amountIn })
+          const route = selectSwapRoute(quote)
+          if (!route) throw new Error('No route available for this token pair')
+          const result = await sdk.swap.router.execute({
+            quote,
+            route,
+            slippage: cliSlippageToSdk(slippage),
+            // SunKit router swaps used a one-hour transaction deadline.
+            transactionValidForSeconds: 3600,
+          })
+          return {
+            txid: (toCliTxResult(result) as { txid: string }).txid,
+            route: {
+              amountIn: route.amountIn,
+              amountOut: route.amountOut,
+              symbols: route.symbols,
+              poolVersions: route.poolVersions,
+              impact: route.impact,
+            },
+          }
+        },
         onSuccess: async (result: any) => {
           if (!isJsonMode()) {
             const chalk = (await import('chalk')).default
@@ -179,13 +213,12 @@ export function registerSwapCommands(program: Command) {
       await readAction({
         spinnerLabel: 'Quoting swap...',
         errorLabel: 'Quote failed',
-        execute: (kit) =>
-          kit.quoteExactInput({
-            network: getNetwork(),
-            routerAddress: opts.router,
+        execute: (sdk) =>
+          sdk.runtime.contract.read({
+            address: opts.router,
             functionName: opts.fn,
             args: JSON.parse(opts.args),
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
+            abi: parseAbi(opts.abi),
           }),
         transform: (result) => ({ result }),
       })
@@ -200,7 +233,7 @@ export function registerSwapCommands(program: Command) {
     .option('--value <sun>', 'TRX call value in Sun')
     .option('--abi <json>', 'Optional router ABI as JSON array')
     .action(async (opts) => {
-      await writeAction({
+      await writeRuntimeAction({
         title: 'SwapExactInput',
         summary: {
           Router: opts.router,
@@ -212,14 +245,15 @@ export function registerSwapCommands(program: Command) {
         spinnerLabel: 'Executing swap...',
         errorLabel: 'SwapExactInput failed',
         execute: (kit) =>
-          kit.swapExactInput({
-            network: getNetwork(),
-            routerAddress: opts.router,
-            functionName: opts.fn,
-            args: JSON.parse(opts.args),
-            value: opts.value,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
-          }),
+          kit.runtime.contract
+            .write({
+              address: opts.router,
+              functionName: opts.fn,
+              args: JSON.parse(opts.args),
+              callValue: opts.value === undefined ? undefined : BigInt(opts.value),
+              abi: parseAbi(opts.abi),
+            })
+            .then(toCliTxResult),
       })
     })
 }

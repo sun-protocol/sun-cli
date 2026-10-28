@@ -74,7 +74,7 @@ export function outputJson(data: unknown) {
 }
 
 function classifyError(message: string, error?: unknown): string {
-  // Prefer error object's own code (e.g. SunKitError.code)
+  // Prefer error object's own code from SDK/API errors.
   if (
     error &&
     typeof error === 'object' &&

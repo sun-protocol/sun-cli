@@ -2,7 +2,7 @@
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Network](https://img.shields.io/badge/Network-TRON-red)
-![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933)
+![Node.js](https://img.shields.io/badge/Node.js-22%20%7C%2024%20LTS-339933)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6)
 
 > A CLI for AI-driven and human-operated DeFi workflows on TRON via the **SUN.IO / SUNSWAP** ecosystem.
@@ -57,7 +57,7 @@
 npm install -g @sun-protocol/sun-cli
 ```
 
-Requires Node.js **20+**.
+Requires Node.js **22.23.4+ (22.x)** or **24.22.1+ (24.x)**. Use the latest patch release of either supported LTS line.
 
 ---
 
