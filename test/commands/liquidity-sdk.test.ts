@@ -77,8 +77,54 @@ describe('liquidity SDK integration', () => {
       await program.parseAsync(['node', 'sun', 'liquidity', ...args], { from: 'node' })
 
       expect(outputError).toHaveBeenCalledWith(
-        'At least one of --amount0 or --amount1 is required',
-        expect.objectContaining({ code: 'INVALID_PARAMS' }),
+        'Invalid liquidity amounts',
+        expect.objectContaining({
+          code: 'INVALID_PARAMS',
+          message: 'At least one of --amount0 or --amount1 is required',
+        }),
+      )
+      expect(writeAction).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([
+    [
+      'V3 mint',
+      ['v3:mint', '--token0', 'SUN', '--token1', 'USDT', '--amount0', '0', '--amount1', '0'],
+    ],
+    ['V3 increase', ['v3:increase', '--token-id', '7', '--amount0', '0', '--amount1', '0']],
+    [
+      'V4 mint',
+      ['v4:mint', '--token0', 'SUN', '--token1', 'USDT', '--amount0', '0', '--amount1', '0'],
+    ],
+    ['V4 increase', ['v4:increase', '--token-id', '7', '--amount0', '0', '--amount1', '0']],
+  ])(
+    'rejects explicit zero-only amounts before %s reaches dry-run or the SDK',
+    async (_name, args) => {
+      const outputError = jest.fn()
+      const writeAction = jest.fn().mockResolvedValue(undefined)
+      jest.doMock('../../src/lib/output', () => ({
+        outputError,
+        withSpinner: async (_label: string, run: () => Promise<unknown>) => run(),
+      }))
+      jest.doMock('../../src/lib/command', () => ({
+        writeAction,
+        readAction: jest.fn().mockResolvedValue(undefined),
+      }))
+      jest.doMock('../../src/lib/context', () => ({ getNetwork: () => 'nile' }))
+
+      const { registerLiquidityCommands } = require('../../src/commands/liquidity')
+      const program = new Command()
+      program.exitOverride()
+      registerLiquidityCommands(program)
+      await program.parseAsync(['node', 'sun', 'liquidity', ...args], { from: 'node' })
+
+      expect(outputError).toHaveBeenCalledWith(
+        'Invalid liquidity amounts',
+        expect.objectContaining({
+          code: 'INVALID_PARAMS',
+          message: 'At least one of --amount0 or --amount1 must be greater than zero',
+        }),
       )
       expect(writeAction).not.toHaveBeenCalled()
     },

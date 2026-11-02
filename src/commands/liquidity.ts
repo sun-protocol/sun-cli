@@ -79,13 +79,27 @@ function parseOptionalSlippage(value: string | undefined): ParsedDecimalSlippage
   return value === undefined ? undefined : parseDecimalSlippage(value)
 }
 
-function outputInvalidParams(message: string): void {
-  const error = invalidParamsError(message)
-  outputError(message, error)
-}
-
 function invalidParamsError(message: string): Error & { code: string } {
   return Object.assign(new Error(message), { code: 'INVALID_PARAMS' })
+}
+
+function assertLiquidityAmounts(amount0: string | undefined, amount1: string | undefined): void {
+  if (amount0 === undefined && amount1 === undefined) {
+    throw invalidParamsError('At least one of --amount0 or --amount1 is required')
+  }
+
+  for (const [name, value] of [
+    ['--amount0', amount0],
+    ['--amount1', amount1],
+  ] as const) {
+    if (value !== undefined && !/^\d+$/.test(value)) {
+      throw invalidParamsError(`${name} must be a non-negative integer in base units`)
+    }
+  }
+
+  if (BigInt(amount0 ?? '0') === 0n && BigInt(amount1 ?? '0') === 0n) {
+    throw invalidParamsError('At least one of --amount0 or --amount1 must be greater than zero')
+  }
 }
 
 interface OptionalV4Pair {
@@ -497,9 +511,10 @@ export function registerLiquidityCommands(program: Command) {
       const token0 = toWTRXIfNative(token0Input, network)
       const token1 = toWTRXIfNative(token1Input, network)
 
-      if (!opts.amount0 && !opts.amount1) {
-        console.error('Error: At least one of --amount0 or --amount1 is required')
-        process.exitCode = 1
+      try {
+        assertLiquidityAmounts(opts.amount0, opts.amount1)
+      } catch (err) {
+        outputError('Invalid liquidity amounts', err)
         return
       }
 
@@ -586,9 +601,10 @@ export function registerLiquidityCommands(program: Command) {
       const network = getNetwork()
       const pm = getV3PositionManager(network, opts.pm)
 
-      if (!opts.amount0 && !opts.amount1) {
-        console.error('Error: At least one of --amount0 or --amount1 is required')
-        process.exitCode = 1
+      try {
+        assertLiquidityAmounts(opts.amount0, opts.amount1)
+      } catch (err) {
+        outputError('Invalid liquidity amounts', err)
         return
       }
 
@@ -781,8 +797,10 @@ export function registerLiquidityCommands(program: Command) {
         return
       }
 
-      if (!opts.amount0 && !opts.amount1) {
-        outputInvalidParams('At least one of --amount0 or --amount1 is required')
+      try {
+        assertLiquidityAmounts(opts.amount0, opts.amount1)
+      } catch (err) {
+        outputError('Invalid liquidity amounts', err)
         return
       }
 
@@ -887,8 +905,10 @@ export function registerLiquidityCommands(program: Command) {
         return
       }
 
-      if (!opts.amount0 && !opts.amount1) {
-        outputInvalidParams('At least one of --amount0 or --amount1 is required')
+      try {
+        assertLiquidityAmounts(opts.amount0, opts.amount1)
+      } catch (err) {
+        outputError('Invalid liquidity amounts', err)
         return
       }
 
