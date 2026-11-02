@@ -4,6 +4,7 @@ import { writeAction, writeRuntimeAction, readRuntimeAction as readAction } from
 import { isJsonMode, output, outputError, withSpinner } from '../lib/output'
 import { resolveTokenAddress, getSymbolOrAddress } from '../lib/tokens'
 import { toCliTxResult } from '../lib/sdk/compat'
+import { parseDecimalSlippage } from '../lib/slippage'
 
 const ROUTER_API: Record<string, string> = {
   mainnet: 'https://rot.endjgfsv.link',
@@ -20,10 +21,6 @@ interface RouteData {
 
 function selectSwapRoute(quote: any): any {
   return quote.bestRoute ?? quote.route ?? quote.routes?.[0]
-}
-
-function cliSlippageToSdk(value: number): `${number}%` {
-  return `${value * 100}%` as `${number}%`
 }
 
 function parseAbi(value: string | undefined): any[] | undefined {
@@ -73,7 +70,13 @@ export function registerSwapCommands(program: Command) {
     .option('--slippage <n>', 'Slippage tolerance as decimal (e.g. 0.005 for 0.5%)', '0.005')
     .action(async (tokenInArg: string, tokenOutArg: string, amountIn: string, opts) => {
       const network = getNetwork()
-      const slippage = parseFloat(opts.slippage)
+      let slippage
+      try {
+        slippage = parseDecimalSlippage(opts.slippage)
+      } catch (err) {
+        outputError('Invalid --slippage', err)
+        return
+      }
 
       let tokenIn: string, tokenOut: string
       try {
@@ -94,7 +97,7 @@ export function registerSwapCommands(program: Command) {
           'Token In': `${tokenInDisplay} (${tokenIn})`,
           'Token Out': `${tokenOutDisplay} (${tokenOut})`,
           'Amount In': amountIn,
-          Slippage: `${(slippage * 100).toFixed(2)}%`,
+          Slippage: slippage.display,
           Network: network,
         },
         confirmMsg: 'Execute this swap?',
@@ -107,7 +110,7 @@ export function registerSwapCommands(program: Command) {
           const result = await sdk.swap.router.execute({
             quote,
             route,
-            slippage: cliSlippageToSdk(slippage),
+            slippage: slippage.sdk,
             // SunKit router swaps used a one-hour transaction deadline.
             transactionValidForSeconds: 3600,
           })

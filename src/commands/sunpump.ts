@@ -4,6 +4,7 @@ import { confirm, printSummary } from '../lib/confirm'
 import { getNetwork, getKit } from '../lib/context'
 import { SunPumpApiClient } from '@sun-protocol/sun-sdk-api'
 import { toCliTxResult } from '../lib/sdk/compat'
+import { parseDecimalSlippage } from '../lib/slippage'
 import {
   output,
   outputError,
@@ -821,13 +822,19 @@ export function registerSunpumpCommands(program: Command) {
         outputError('Invalid --trx', err)
         return
       }
-      const slippage = parseFloat(opts.slippage)
+      let slippage
+      try {
+        slippage = parseDecimalSlippage(opts.slippage)
+      } catch (err) {
+        outputError('Invalid --slippage', err)
+        return
+      }
       const network = getNetwork()
 
       const summary: Record<string, unknown> = {
         Token: tokenAddress,
         'TRX In': `${opts.trx} TRX (${trxSun} Sun)`,
-        Slippage: `${(slippage * 100).toFixed(2)}%`,
+        Slippage: slippage.display,
         Network: network,
       }
       try {
@@ -855,7 +862,7 @@ export function registerSunpumpCommands(program: Command) {
               trxAmount: trxSun,
               minTokenOut: opts.minOut,
               launchpadOnly: true,
-              slippage: `${slippage * 100}%`,
+              slippage: slippage.sdk,
             })
             .then(toCliTxResult),
         onSuccess: async (result: any) => {
@@ -894,13 +901,19 @@ export function registerSunpumpCommands(program: Command) {
         outputError('Invalid --amount', err)
         return
       }
-      const slippage = parseFloat(opts.slippage)
+      let slippage
+      try {
+        slippage = parseDecimalSlippage(opts.slippage)
+      } catch (err) {
+        outputError('Invalid --slippage', err)
+        return
+      }
       const network = getNetwork()
 
       const summary: Record<string, unknown> = {
         Token: tokenAddress,
         'Tokens In': `${opts.amount} (${tokenRaw} raw)`,
-        Slippage: `${(slippage * 100).toFixed(2)}%`,
+        Slippage: slippage.display,
         Network: network,
       }
       try {
@@ -932,7 +945,7 @@ export function registerSunpumpCommands(program: Command) {
               tokenAmount: tokenRaw,
               minTrxOut: opts.minOut,
               launchpadOnly: true,
-              slippage: `${slippage * 100}%`,
+              slippage: slippage.sdk,
             })
             .then(toCliTxResult),
         onSuccess: async (result: any) => {

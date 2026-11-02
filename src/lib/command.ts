@@ -180,6 +180,10 @@ export interface WriteActionOpts<T = any, Client = CliSunSDK> {
   spinnerLabel: string
   /** The async operation that calls kit methods */
   execute: (kit: Client) => Promise<T>
+  /** Optional read-only preparation performed before the summary and confirmation. */
+  prepare?: (kit: Client) => Promise<void>
+  /** Spinner label for the optional preparation step. */
+  prepareLabel?: string
   /** Error label prefix for outputError */
   errorLabel: string
   /** Optional post-success callback (e.g. extra human-friendly output) */
@@ -212,6 +216,10 @@ async function runWriteAction<T, Client>(
     const kit = await getClient()
     const network =
       typeof opts.summary.Network === 'string' ? String(opts.summary.Network) : undefined
+
+    if (opts.prepare) {
+      await withSpinner(opts.prepareLabel ?? 'Preparing transaction...', () => opts.prepare!(kit))
+    }
 
     printSummary(opts.title, opts.summary)
 

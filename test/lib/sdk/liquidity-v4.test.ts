@@ -4,7 +4,11 @@ import {
   createV4PoolKey,
   encodeV4PoolParameters,
 } from '@sun-protocol/sun-sdk-sunswap-v4'
-import { resolveV4MintTicks, v4TickSpacingForFee } from '../../../src/lib/sdk/liquidity-v4'
+import {
+  resolveV4MintTicks,
+  v4PoolKeyFromCli,
+  v4TickSpacingForFee,
+} from '../../../src/lib/sdk/liquidity-v4'
 import type { CliSunSDK } from '../../../src/lib/sdk/types'
 
 const token0 = 'TYsbWxNnyTgsZaTFaue9hqpxkU3Fkco94a'
@@ -104,5 +108,21 @@ describe('V4 mint automatic ticks', () => {
 
   it('keeps the legacy V4 tick-spacing fallback', () => {
     expect(v4TickSpacingForFee(2500)).toBe(10)
+  })
+
+  it('derives the native TRX pool instead of the WTRX pool', () => {
+    const nativeTrx = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
+    const usdt = 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t'
+    const wtrx = 'TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR'
+    const nativePoolKey = v4PoolKeyFromCli('mainnet', nativeTrx, usdt, 500)
+    const wrappedPoolKey = v4PoolKeyFromCli('mainnet', wtrx, usdt, 500)
+
+    expect(nativePoolKey.currency0).toBe(nativeTrx)
+    expect(computeV4PoolId(nativePoolKey)).toBe(
+      '0xdda1d5819853f19f3e952da5d93aa2d572d95c72a8e6e4c2acab65384fd2557e',
+    )
+    expect(computeV4PoolId(wrappedPoolKey)).toBe(
+      '0xc6e07bc4418402f27a3af8bcd349dacb1515ba038ad7189cf0e1bbf689fc082e',
+    )
   })
 })

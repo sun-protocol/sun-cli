@@ -1,10 +1,12 @@
 import { Command } from 'commander'
 import { getNetwork } from '../lib/context'
 import { writeAction, readAction } from '../lib/command'
-import { withSpinner } from '../lib/output'
+import { outputError, withSpinner } from '../lib/output'
 import { resolveTokenAddress, getSymbolOrAddress } from '../lib/tokens'
 import { getContractAddress } from '@sun-protocol/sun-sdk-chains'
 import type { Network } from '@sun-protocol/sun-sdk-core'
+import type { V4PositionSnapshot } from '@sun-protocol/sun-sdk-protocols'
+import type { V4PoolKey } from '@sun-protocol/sun-sdk-sunswap-v4'
 import { TronWeb } from 'tronweb'
 import {
   DEFAULT_V3_FEE,
@@ -16,7 +18,9 @@ import {
 import { createReadonlyTronWeb, withLiquidityAbi } from '../lib/sdk/factory'
 import { toCliTxResult } from '../lib/sdk/compat'
 import { resolveLegacyV3Pool } from '../lib/sdk/liquidity-v3'
-import { resolveV4MintTicks, v4TickSpacingForFee, v4PoolKeyFromCli } from '../lib/sdk/liquidity-v4'
+import { resolveV4MintTicks, v4TickSpacingForFee } from '../lib/sdk/liquidity-v4'
+import type { CliSunSDK } from '../lib/sdk/types'
+import { parseDecimalSlippage, type ParsedDecimalSlippage } from '../lib/slippage'
 
 const SUNSWAP_V2_FACTORY_MIN_ABI = [
   {
@@ -71,20 +75,109 @@ function getV2Factory(network: string): string {
   return getContractAddress(assertSdkNetwork(network), 'sunswapV2Factory')
 }
 
-// SunKit V4 interpreted this existing CLI value as percent, despite its help text.
-// Keep that historical interpretation and integer rounding during migration.
-function legacyV4MaximumSlippage(value: string | undefined): `${number}%` {
-  const percent = value === undefined ? 0 : parseFloat(value)
-  const bips = percent > 0 ? Math.floor((100 + percent) * 100) - 10_000 : 0
-  return `${bips / 100}%`
+function parseOptionalSlippage(value: string | undefined): ParsedDecimalSlippage | undefined {
+  return value === undefined ? undefined : parseDecimalSlippage(value)
 }
 
-function legacyV4Minimum(value: string | undefined, slippage: string | undefined): string {
-  const amount = BigInt(value ?? '0')
-  const percent = slippage === undefined ? 0 : parseFloat(slippage)
-  return percent > 0
-    ? ((amount * BigInt(Math.floor((100 - percent) * 100))) / 10_000n).toString()
-    : amount.toString()
+function outputInvalidParams(message: string): void {
+  const error = invalidParamsError(message)
+  outputError(message, error)
+}
+
+function invalidParamsError(message: string): Error & { code: string } {
+  return Object.assign(new Error(message), { code: 'INVALID_PARAMS' })
+}
+
+interface OptionalV4Pair {
+  token0?: string
+  token1?: string
+}
+
+interface PreparedV4Position {
+  poolKey: V4PoolKey
+  reversed: boolean
+}
+
+function resolveOptionalV4Pair(
+  token0Input: string | undefined,
+  token1Input: string | undefined,
+  network: string,
+): OptionalV4Pair {
+  if ((token0Input === undefined) !== (token1Input === undefined)) {
+    throw invalidParamsError('--token0 and --token1 must be provided together or both omitted')
+  }
+  if (token0Input === undefined || token1Input === undefined) return {}
+  return {
+    token0: resolveTokenAddress(token0Input, network),
+    token1: resolveTokenAddress(token1Input, network),
+  }
+}
+
+function parseOptionalV4Fee(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined
+  if (!/^\d+$/.test(value)) throw invalidParamsError('--fee must be a non-negative integer')
+  const fee = Number(value)
+  if (!Number.isSafeInteger(fee) || fee > 0xffffff) {
+    throw invalidParamsError('--fee must fit in an unsigned 24-bit integer')
+  }
+  return fee
+}
+
+function prepareV4Position(
+  snapshot: V4PositionSnapshot,
+  expectedPair: OptionalV4Pair,
+  expectedFee: number | undefined,
+): PreparedV4Position {
+  const poolKey = snapshot.poolKey
+  if (!poolKey) {
+    throw Object.assign(new Error('V4 position does not include its pool information'), {
+      code: 'SDK_CONTRACT_ERROR',
+    })
+  }
+
+  if (expectedFee !== undefined && poolKey.fee !== expectedFee) {
+    throw invalidParamsError(`--fee ${expectedFee} does not match position pool fee ${poolKey.fee}`)
+  }
+
+  if (expectedPair.token0 === undefined || expectedPair.token1 === undefined) {
+    return { poolKey, reversed: false }
+  }
+  if (expectedPair.token0 === expectedPair.token1) {
+    throw invalidParamsError('--token0 and --token1 must be different currencies')
+  }
+  if (expectedPair.token0 === poolKey.currency0 && expectedPair.token1 === poolKey.currency1) {
+    return { poolKey, reversed: false }
+  }
+  if (expectedPair.token0 === poolKey.currency1 && expectedPair.token1 === poolKey.currency0) {
+    return { poolKey, reversed: true }
+  }
+  throw invalidParamsError('Provided --token0/--token1 do not match the tokenId position')
+}
+
+function v4PositionTokenSummary(poolKey: V4PoolKey, network: string) {
+  return {
+    Token0: `${getSymbolOrAddress(poolKey.currency0, network)} (${poolKey.currency0})`,
+    Token1: `${getSymbolOrAddress(poolKey.currency1, network)} (${poolKey.currency1})`,
+    Fee: poolKey.fee,
+  }
+}
+
+function orderV4PositionValues<T>(reversed: boolean, value0: T, value1: T): [T, T] {
+  return reversed ? [value1, value0] : [value0, value1]
+}
+
+function createV4PositionLoader(
+  tokenId: string,
+  expectedPair: OptionalV4Pair,
+  expectedFee: number | undefined,
+): (sdk: CliSunSDK) => Promise<PreparedV4Position> {
+  let pending: Promise<PreparedV4Position> | undefined
+  return (sdk) => {
+    pending ??= sdk.positions.v4
+      .read({ tokenId })
+      .then((snapshot) => prepareV4Position(snapshot, expectedPair, expectedFee))
+    return pending
+  }
 }
 
 function toV3PoolOrder<T>(token0: string, token1: string, value0: T, value1: T): [T, T] {
@@ -428,8 +521,8 @@ export function registerLiquidityCommands(program: Command) {
           Token1: `${token1Display}${token1Note} (${token1})`,
           Fee: opts.fee || `${DEFAULT_V3_FEE} (default)`,
           'Tick Range': tickRange,
-          Amount0: opts.amount0 || '(auto)',
-          Amount1: opts.amount1 || '(auto)',
+          Amount0: opts.amount0 ?? '(not provided)',
+          Amount1: opts.amount1 ?? '(not provided)',
           Network: network,
         },
         confirmMsg: 'Mint V3 position?',
@@ -450,15 +543,13 @@ export function registerLiquidityCommands(program: Command) {
               tickLower: opts.tickLower ? parseInt(opts.tickLower) : undefined,
               tickUpper: opts.tickUpper ? parseInt(opts.tickUpper) : undefined,
               tickRangeMode: 'legacy',
-              amountInputMode: 'legacy-cli',
               includeComputedMetadata: true,
               tickRangeWidth:
                 opts.tickLower === undefined || opts.tickUpper === undefined ? 100 : undefined,
               amount0,
               amount1,
-              // Legacy V3 defaults are zero, not the SDK's slippage-derived minima.
-              amount0Min: amount0Min ?? '0',
-              amount1Min: amount1Min ?? '0',
+              amount0Min,
+              amount1Min,
               recipient: opts.recipient,
               ttlSeconds: 1800,
               deadline: opts.deadline,
@@ -506,8 +597,8 @@ export function registerLiquidityCommands(program: Command) {
         summary: {
           'Position Manager': pm,
           'Token ID': opts.tokenId,
-          Amount0: opts.amount0 || '(auto)',
-          Amount1: opts.amount1 || '(auto)',
+          Amount0: opts.amount0 ?? '(not provided)',
+          Amount1: opts.amount1 ?? '(not provided)',
           Network: network,
         },
         confirmMsg: 'Increase V3 liquidity?',
@@ -529,7 +620,6 @@ export function registerLiquidityCommands(program: Command) {
               tokenId: opts.tokenId,
               amount0: opts.amount0,
               amount1: opts.amount1,
-              amountInputMode: 'legacy-cli',
               includeComputedMetadata: true,
               pool:
                 BigInt(opts.amount0 ?? '0') === 0n || BigInt(opts.amount1 ?? '0') === 0n
@@ -539,8 +629,8 @@ export function registerLiquidityCommands(program: Command) {
                       positionAbi: opts.abi,
                     })
                   : undefined,
-              amount0Min: opts.min0 ?? '0',
-              amount1Min: opts.min1 ?? '0',
+              amount0Min: opts.min0,
+              amount1Min: opts.min1,
               ttlSeconds: 1800,
               deadline: opts.deadline,
             })
@@ -588,8 +678,8 @@ export function registerLiquidityCommands(program: Command) {
               contracts: withContracts({ sunswapV3PositionManager: pm }),
               tokenId: opts.tokenId,
               liquidity: opts.liquidity,
-              amount0Min: opts.min0 ?? '0',
-              amount1Min: opts.min1 ?? '0',
+              amount0Min: opts.min0,
+              amount1Min: opts.min1,
               collectFees: false,
               ttlSeconds: 1800,
               deadline: opts.deadline,
@@ -673,38 +763,42 @@ export function registerLiquidityCommands(program: Command) {
         return
       }
 
-      const token0 = toWTRXIfNative(token0Input, network)
-      const token1 = toWTRXIfNative(token1Input, network)
+      // V4 identifies native TRX with the zero address. WTRX is a different pool currency.
+      const token0 = token0Input
+      const token1 = token1Input
 
       const token0Display = getSymbolOrAddress(token0Input, network)
       const token1Display = getSymbolOrAddress(token1Input, network)
-      const token0Note = token0 !== token0Input ? ` → WTRX` : ''
-      const token1Note = token1 !== token1Input ? ` → WTRX` : ''
       const fee = opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE
       const tickLower = opts.tickLower !== undefined ? parseInt(opts.tickLower) : undefined
       const tickUpper = opts.tickUpper !== undefined ? parseInt(opts.tickUpper) : undefined
 
+      let slippage: ParsedDecimalSlippage | undefined
+      try {
+        slippage = parseOptionalSlippage(opts.slippage)
+      } catch (err) {
+        outputError('Invalid --slippage', err)
+        return
+      }
+
       if (!opts.amount0 && !opts.amount1) {
-        console.error('Error: At least one of --amount0 or --amount1 is required')
-        process.exitCode = 1
+        outputInvalidParams('At least one of --amount0 or --amount1 is required')
         return
       }
 
       await writeAction({
         title: 'V4 Mint Position',
         summary: {
-          Token0: `${token0Display}${token0Note} (${token0})`,
-          Token1: `${token1Display}${token1Note} (${token1})`,
+          Token0: `${token0Display} (${token0})`,
+          Token1: `${token1Display} (${token1})`,
           Fee: opts.fee || `${DEFAULT_V4_FEE} (default)`,
           'Tick Range':
             tickLower !== undefined && tickUpper !== undefined
               ? `[${tickLower}, ${tickUpper}]`
               : '(auto)',
-          Amount0: opts.amount0 || '(auto)',
-          Amount1: opts.amount1 || '(auto)',
-          Slippage: opts.slippage
-            ? `${(parseFloat(opts.slippage) * 100).toFixed(2)}%`
-            : '(default)',
+          Amount0: opts.amount0 ?? '(not provided)',
+          Amount1: opts.amount1 ?? '(not provided)',
+          Slippage: slippage?.display ?? '(default)',
           'Create Pool': opts.createPool ? 'Yes' : 'No',
           Network: network,
         },
@@ -729,9 +823,7 @@ export function registerLiquidityCommands(program: Command) {
               ...ticks,
               amount0: opts.amount0,
               amount1: opts.amount1,
-              slippage: legacyV4MaximumSlippage(opts.slippage),
-              roundingMode: 'floor',
-              amountInputMode: 'legacy-cli',
+              slippage: slippage?.sdk,
               includeComputedMetadata: true,
               transactionMode: 'multicall',
               recipient: opts.recipient,
@@ -768,9 +860,9 @@ export function registerLiquidityCommands(program: Command) {
     .command('v4:increase')
     .description('Increase liquidity of an existing V4 position')
     .requiredOption('--token-id <id>', 'Position NFT token ID')
-    .requiredOption('--token0 <tokenOrAddress>', 'Token0 (symbol like TRX/USDT or address)')
-    .requiredOption('--token1 <tokenOrAddress>', 'Token1 (symbol like TRX/USDT or address)')
-    .option('--fee <n>', 'Pool fee tier')
+    .option('--token0 <tokenOrAddress>', 'Expected token0; provide together with --token1')
+    .option('--token1 <tokenOrAddress>', 'Expected token1; provide together with --token0')
+    .option('--fee <n>', 'Expected pool fee tier (validated against the position)')
     .option('--amount0 <raw>', 'Additional amount of token0')
     .option('--amount1 <raw>', 'Additional amount of token1')
     .option('--slippage <n>', 'Slippage tolerance as decimal')
@@ -778,60 +870,79 @@ export function registerLiquidityCommands(program: Command) {
     .action(async (opts) => {
       const network = getNetwork()
 
-      let token0Input: string, token1Input: string
+      let expectedPair: OptionalV4Pair, expectedFee: number | undefined
       try {
-        token0Input = resolveTokenAddress(opts.token0, network)
-        token1Input = resolveTokenAddress(opts.token1, network)
-      } catch (err: any) {
-        console.error(err.message)
-        process.exitCode = 1
+        expectedPair = resolveOptionalV4Pair(opts.token0, opts.token1, network)
+        expectedFee = parseOptionalV4Fee(opts.fee)
+      } catch (err) {
+        outputError('Invalid V4 position assertions', err)
         return
       }
 
-      const token0 = toWTRXIfNative(token0Input, network)
-      const token1 = toWTRXIfNative(token1Input, network)
-
-      const token0Display = getSymbolOrAddress(token0Input, network)
-      const token1Display = getSymbolOrAddress(token1Input, network)
+      let slippage: ParsedDecimalSlippage | undefined
+      try {
+        slippage = parseOptionalSlippage(opts.slippage)
+      } catch (err) {
+        outputError('Invalid --slippage', err)
+        return
+      }
 
       if (!opts.amount0 && !opts.amount1) {
-        console.error('Error: At least one of --amount0 or --amount1 is required')
-        process.exitCode = 1
+        outputInvalidParams('At least one of --amount0 or --amount1 is required')
         return
       }
+
+      const summary: Record<string, unknown> = {
+        'Token ID': opts.tokenId,
+        Token0: expectedPair.token0 ?? '(from tokenId)',
+        Token1: expectedPair.token1 ?? '(from tokenId)',
+        Fee: expectedFee ?? '(from tokenId)',
+        Amount0: opts.amount0 ?? '(not provided)',
+        Amount1: opts.amount1 ?? '(not provided)',
+        Slippage: slippage?.display ?? '(default)',
+        Network: network,
+      }
+      const loadPosition = createV4PositionLoader(opts.tokenId, expectedPair, expectedFee)
 
       await writeAction({
         title: 'V4 Increase Liquidity',
-        summary: {
-          'Token ID': opts.tokenId,
-          Token0: `${token0Display} (${token0})`,
-          Token1: `${token1Display} (${token1})`,
-          Amount0: opts.amount0 || '(auto)',
-          Amount1: opts.amount1 || '(auto)',
-          Network: network,
+        summary,
+        prepareLabel: 'Loading V4 position...',
+        prepare: async (sdk) => {
+          const prepared = await loadPosition(sdk)
+          const [amount0, amount1] = orderV4PositionValues(
+            prepared.reversed,
+            opts.amount0,
+            opts.amount1,
+          )
+          Object.assign(summary, v4PositionTokenSummary(prepared.poolKey, network), {
+            Amount0: amount0 ?? '(not provided)',
+            Amount1: amount1 ?? '(not provided)',
+          })
         },
         confirmMsg: 'Increase V4 liquidity?',
         spinnerLabel: 'Increasing V4 liquidity...',
         errorLabel: 'V4 increase liquidity failed',
-        execute: (sdk) =>
-          sdk.liquidity.v4.increase
+        execute: async (sdk) => {
+          const prepared = await loadPosition(sdk)
+          const [amount0, amount1] = orderV4PositionValues(
+            prepared.reversed,
+            opts.amount0,
+            opts.amount1,
+          )
+          return sdk.liquidity.v4.increase
             .execute({
               tokenId: opts.tokenId,
-              token0,
-              token1,
-              fee: opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE,
-              tickSpacing: v4TickSpacingForFee(opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE),
-              amount0: opts.amount0,
-              amount1: opts.amount1,
-              slippage: legacyV4MaximumSlippage(opts.slippage),
-              roundingMode: 'floor',
-              amountInputMode: 'legacy-cli',
+              amount0,
+              amount1,
+              slippage: slippage?.sdk,
               includeComputedMetadata: true,
               transactionMode: 'multicall',
               ttlSeconds: 1800,
               deadline: opts.deadline,
             })
-            .then(mapTx),
+            .then(mapTx)
+        },
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.computedAmounts) {
@@ -849,9 +960,9 @@ export function registerLiquidityCommands(program: Command) {
     .description('Decrease liquidity of an existing V4 position')
     .requiredOption('--token-id <id>', 'Position NFT token ID')
     .requiredOption('--liquidity <raw>', 'Amount of liquidity to remove')
-    .requiredOption('--token0 <tokenOrAddress>', 'Token0 (symbol like TRX/USDT or address)')
-    .requiredOption('--token1 <tokenOrAddress>', 'Token1 (symbol like TRX/USDT or address)')
-    .option('--fee <n>', 'Pool fee tier')
+    .option('--token0 <tokenOrAddress>', 'Expected token0; provide together with --token1')
+    .option('--token1 <tokenOrAddress>', 'Expected token1; provide together with --token0')
+    .option('--fee <n>', 'Expected pool fee tier (validated against the position)')
     .option('--min0 <raw>', 'Minimum amount of token0 to receive')
     .option('--min1 <raw>', 'Minimum amount of token1 to receive')
     .option('--slippage <n>', 'Slippage tolerance as decimal')
@@ -859,54 +970,73 @@ export function registerLiquidityCommands(program: Command) {
     .action(async (opts) => {
       const network = getNetwork()
 
-      let token0Input: string, token1Input: string
+      let expectedPair: OptionalV4Pair, expectedFee: number | undefined
       try {
-        token0Input = resolveTokenAddress(opts.token0, network)
-        token1Input = resolveTokenAddress(opts.token1, network)
-      } catch (err: any) {
-        console.error(err.message)
-        process.exitCode = 1
+        expectedPair = resolveOptionalV4Pair(opts.token0, opts.token1, network)
+        expectedFee = parseOptionalV4Fee(opts.fee)
+      } catch (err) {
+        outputError('Invalid V4 position assertions', err)
         return
       }
 
-      const token0 = toWTRXIfNative(token0Input, network)
-      const token1 = toWTRXIfNative(token1Input, network)
+      let slippage: ParsedDecimalSlippage | undefined
+      try {
+        slippage = parseOptionalSlippage(opts.slippage)
+      } catch (err) {
+        outputError('Invalid --slippage', err)
+        return
+      }
 
-      const token0Display = getSymbolOrAddress(token0Input, network)
-      const token1Display = getSymbolOrAddress(token1Input, network)
+      const summary: Record<string, unknown> = {
+        'Token ID': opts.tokenId,
+        Liquidity: opts.liquidity,
+        Token0: expectedPair.token0 ?? '(from tokenId)',
+        Token1: expectedPair.token1 ?? '(from tokenId)',
+        Fee: expectedFee ?? '(from tokenId)',
+        Min0: opts.min0 ?? '(SDK derived)',
+        Min1: opts.min1 ?? '(SDK derived)',
+        Slippage: slippage?.display ?? '(default)',
+        Network: network,
+      }
+      const loadPosition = createV4PositionLoader(opts.tokenId, expectedPair, expectedFee)
 
       await writeAction({
         title: 'V4 Decrease Liquidity',
-        summary: {
-          'Token ID': opts.tokenId,
-          Liquidity: opts.liquidity,
-          Token0: `${token0Display} (${token0})`,
-          Token1: `${token1Display} (${token1})`,
-          Network: network,
+        summary,
+        prepareLabel: 'Loading V4 position...',
+        prepare: async (sdk) => {
+          const prepared = await loadPosition(sdk)
+          const [min0, min1] = orderV4PositionValues(prepared.reversed, opts.min0, opts.min1)
+          Object.assign(summary, v4PositionTokenSummary(prepared.poolKey, network), {
+            Min0: min0 ?? '(SDK derived)',
+            Min1: min1 ?? '(SDK derived)',
+          })
         },
         confirmMsg: 'Decrease V4 liquidity?',
         spinnerLabel: 'Decreasing V4 liquidity...',
         errorLabel: 'V4 decrease liquidity failed',
-        execute: (sdk) =>
-          sdk.positions.v4.remove
+        execute: async (sdk) => {
+          const prepared = await loadPosition(sdk)
+          const [amount0Min, amount1Min] = orderV4PositionValues(
+            prepared.reversed,
+            opts.min0,
+            opts.min1,
+          )
+          return sdk.positions.v4.remove
             .execute({
               tokenId: opts.tokenId,
               liquidity: opts.liquidity,
-              poolKey: v4PoolKeyFromCli(
-                assertSdkNetwork(network),
-                token0,
-                token1,
-                opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE,
-              ),
-              amount0Min: legacyV4Minimum(opts.min0, opts.slippage),
-              amount1Min: legacyV4Minimum(opts.min1, opts.slippage),
+              amount0Min,
+              amount1Min,
+              slippage: slippage?.sdk,
               includeComputedMetadata: true,
               transactionMode: 'multicall',
               settlementMode: 'close-currency',
               ttlSeconds: 1800,
               deadline: opts.deadline,
             })
-            .then(mapTx),
+            .then(mapTx)
+        },
         summarizeResult: (result: any) => {
           const out: Record<string, unknown> = {}
           if (result?.computedAmountMin) {
@@ -923,66 +1053,54 @@ export function registerLiquidityCommands(program: Command) {
     .command('v4:collect')
     .description('Collect accrued fees from an existing V4 position')
     .requiredOption('--token-id <id>', 'Position NFT token ID')
-    .option('--token0 <tokenOrAddress>', 'Token0 (symbol like TRX/USDT or address)')
-    .option('--token1 <tokenOrAddress>', 'Token1 (symbol like TRX/USDT or address)')
-    .option('--fee <n>', 'Pool fee tier')
+    .option('--token0 <tokenOrAddress>', 'Expected token0; provide together with --token1')
+    .option('--token1 <tokenOrAddress>', 'Expected token1; provide together with --token0')
+    .option('--fee <n>', 'Expected pool fee tier (validated against the position)')
     .option('--deadline <timestamp>', 'Unix timestamp deadline')
     .action(async (opts) => {
       const network = getNetwork()
 
-      let token0: string | undefined, token1: string | undefined
-      if (opts.token0) {
-        try {
-          const resolved = resolveTokenAddress(opts.token0, network)
-          token0 = toWTRXIfNative(resolved, network)
-        } catch (err: any) {
-          console.error(err.message)
-          process.exitCode = 1
-          return
-        }
+      let expectedPair: OptionalV4Pair, expectedFee: number | undefined
+      try {
+        expectedPair = resolveOptionalV4Pair(opts.token0, opts.token1, network)
+        expectedFee = parseOptionalV4Fee(opts.fee)
+      } catch (err) {
+        outputError('Invalid V4 position assertions', err)
+        return
       }
-      if (opts.token1) {
-        try {
-          const resolved = resolveTokenAddress(opts.token1, network)
-          token1 = toWTRXIfNative(resolved, network)
-        } catch (err: any) {
-          console.error(err.message)
-          process.exitCode = 1
-          return
-        }
+
+      const summary: Record<string, unknown> = {
+        'Token ID': opts.tokenId,
+        Token0: expectedPair.token0 ?? '(from tokenId)',
+        Token1: expectedPair.token1 ?? '(from tokenId)',
+        Fee: expectedFee ?? '(from tokenId)',
+        Network: network,
       }
+      const loadPosition = createV4PositionLoader(opts.tokenId, expectedPair, expectedFee)
 
       await writeAction({
         title: 'V4 Collect Fees',
-        summary: {
-          'Token ID': opts.tokenId,
-          Token0: token0 || '(auto)',
-          Token1: token1 || '(auto)',
-          Network: network,
+        summary,
+        prepareLabel: 'Loading V4 position...',
+        prepare: async (sdk) => {
+          const prepared = await loadPosition(sdk)
+          Object.assign(summary, v4PositionTokenSummary(prepared.poolKey, network))
         },
         confirmMsg: 'Collect V4 fees?',
         spinnerLabel: 'Collecting V4 fees...',
         errorLabel: 'V4 collect failed',
-        execute: (sdk) =>
-          sdk.positions.v4.collect
+        execute: async (sdk) => {
+          await loadPosition(sdk)
+          return sdk.positions.v4.collect
             .execute({
               tokenId: opts.tokenId,
-              ...(token0 && token1
-                ? {
-                    poolKey: v4PoolKeyFromCli(
-                      assertSdkNetwork(network),
-                      token0,
-                      token1,
-                      opts.fee ? parseInt(opts.fee) : DEFAULT_V4_FEE,
-                    ),
-                  }
-                : {}),
               transactionMode: 'multicall',
               settlementMode: 'close-currency',
               ttlSeconds: 1800,
               deadline: opts.deadline,
             })
-            .then(mapTx),
+            .then(mapTx)
+        },
       })
     })
 

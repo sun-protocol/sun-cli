@@ -44,6 +44,7 @@ describe('sunpump SDK integration', () => {
         expect.objectContaining({
           token: 'TToken',
           launchpadOnly: true,
+          slippage: '5%',
           [direction === 'buy' ? 'minTokenOut' : 'minTrxOut']: '990',
         }),
       )
