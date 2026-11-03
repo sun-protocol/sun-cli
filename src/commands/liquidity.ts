@@ -817,6 +817,7 @@ export function registerLiquidityCommands(program: Command) {
           Amount0: opts.amount0 ?? '(not provided)',
           Amount1: opts.amount1 ?? '(not provided)',
           Slippage: slippage?.display ?? '(default)',
+          Recipient: opts.recipient ?? '(active wallet)',
           'Create Pool': opts.createPool ? 'Yes' : 'No',
           Network: network,
         },

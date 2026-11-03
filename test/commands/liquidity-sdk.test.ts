@@ -334,6 +334,7 @@ describe('liquidity SDK integration', () => {
     ).resolves.toMatchObject({ txid: 'mint-tx' })
     expect(action.summary.Fee).toBe('500 (default)')
     expect(action.summary['Tick Range']).toBe('(auto)')
+    expect(action.summary.Recipient).toBe('TOwner')
     expect(execute).toHaveBeenCalledWith(
       expect.objectContaining({
         fee: 500,
@@ -347,6 +348,20 @@ describe('liquidity SDK integration', () => {
     )
     expect(execute.mock.calls[0][0]).not.toHaveProperty('owner')
     expect(execute.mock.calls[0][0]).not.toHaveProperty('amountInputMode')
+  })
+
+  it('shows the active wallet as the default V4 NFT recipient', async () => {
+    const action = await captureWriteAction([
+      'v4:mint',
+      '--token0',
+      'SUN',
+      '--token1',
+      'USDT',
+      '--amount0',
+      '100',
+    ])
+
+    expect(action.summary.Recipient).toBe('(active wallet)')
   })
 
   it('preserves explicit V4 fees and tick zero without an automatic pool read', async () => {
