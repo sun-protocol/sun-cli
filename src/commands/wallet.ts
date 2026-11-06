@@ -4,6 +4,38 @@ import { readRuntimeAction as readAction } from '../lib/command'
 import { getWalletAddress, initWallet } from '../lib/wallet'
 import { output, outputError } from '../lib/output'
 import { readBalances } from '@sun-protocol/sun-sdk-runtime'
+import { assertTronAddress } from '@sun-protocol/sun-sdk-core'
+import { TRX_ADDRESS } from '../lib/sdk/constants'
+
+async function readBalancesWithLegacyNativeRule(
+  tronClient: Parameters<typeof readBalances>[0],
+  owner: string,
+  tokens: readonly string[],
+) {
+  // The pre-migration CLI treated only the literal "TRX" token as native.
+  // A zero-address token argument followed the TRC20 balanceOf path.
+  const standardBalances = await readBalances(tronClient, {
+    owner,
+    tokens: tokens.filter((token) => token !== TRX_ADDRESS),
+  })
+  let standardIndex = 0
+  return Promise.all(
+    tokens.map(async (token) => {
+      if (token !== TRX_ADDRESS) return standardBalances[standardIndex++]!
+      return {
+        token,
+        balance: String(
+          await tronClient.readContract({
+            target: assertTronAddress(token),
+            functionSelector: 'balanceOf(address)',
+            parameters: [{ type: 'address', value: owner }],
+            outputs: [{ type: 'uint256' }],
+          }),
+        ),
+      }
+    }),
+  )
+}
 
 export function registerWalletCommands(program: Command) {
   const wallet = program.command('wallet').description('Wallet management')
@@ -39,10 +71,11 @@ export function registerWalletCommands(program: Command) {
             throw new Error(
               'Wallet required. Set agent-wallet credentials before running this command.',
             )
-          const balances = await readBalances(sdk.runtime.tronClient, {
+          const balances = await readBalancesWithLegacyNativeRule(
+            sdk.runtime.tronClient,
             owner,
-            tokens: tokenList,
-          })
+            tokenList,
+          )
           return balances.map((item) => ({
             address: owner,
             type: String(item.token).toUpperCase() === 'TRX' ? 'TRX' : 'TRC20',

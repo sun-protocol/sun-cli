@@ -11,6 +11,7 @@ import { TronWeb } from 'tronweb'
 import {
   DEFAULT_V3_FEE,
   DEFAULT_V4_FEE,
+  CLI_V3_FACTORY,
   TRX_ADDRESS,
   WTRX_MAINNET,
   WTRX_NILE,
@@ -638,11 +639,12 @@ export function registerLiquidityCommands(program: Command) {
               amount1: opts.amount1,
               includeComputedMetadata: true,
               pool:
-                BigInt(opts.amount0 ?? '0') === 0n || BigInt(opts.amount1 ?? '0') === 0n
+                opts.pm || BigInt(opts.amount0 ?? '0') === 0n || BigInt(opts.amount1 ?? '0') === 0n
                   ? await resolveLegacyV3Pool(sdk, {
                       tokenId: opts.tokenId,
                       positionManager: pm,
                       positionAbi: opts.abi,
+                      factory: opts.pm ? undefined : CLI_V3_FACTORY[assertSdkNetwork(network)],
                     })
                   : undefined,
               amount0Min: opts.min0,
@@ -694,6 +696,13 @@ export function registerLiquidityCommands(program: Command) {
               contracts: withContracts({ sunswapV3PositionManager: pm }),
               tokenId: opts.tokenId,
               liquidity: opts.liquidity,
+              pool: opts.pm
+                ? await resolveLegacyV3Pool(sdk, {
+                    tokenId: opts.tokenId,
+                    positionManager: pm,
+                    positionAbi: opts.abi,
+                  })
+                : undefined,
               amount0Min: opts.min0,
               amount1Min: opts.min1,
               collectFees: false,

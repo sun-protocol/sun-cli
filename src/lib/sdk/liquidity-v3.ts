@@ -21,6 +21,7 @@ export async function resolveLegacyV3Pool(
     tokenId?: string
     positionManager?: string
     positionAbi?: string
+    factory?: string
   },
 ) {
   let { token0, token1, fee } = input
@@ -45,9 +46,20 @@ export async function resolveLegacyV3Pool(
     token1 = address(values.token1 ?? values[3])
     fee = Number(values.fee ?? values[4])
   }
+  const factory = input.factory
+    ? assertTronAddress(input.factory)
+    : input.positionManager
+      ? address(
+          await sdk.runtime.contract.read({
+            address: input.positionManager,
+            functionSelector: 'factory()',
+            outputs: [{ type: 'address' }],
+          }),
+        )
+      : CLI_V3_FACTORY[sdk.network]
   const pool = address(
     await sdk.runtime.contract.read({
-      address: CLI_V3_FACTORY[sdk.network],
+      address: factory,
       functionSelector: 'getPool(address,address,uint24)',
       parameters: [
         { type: 'address', value: token0 },

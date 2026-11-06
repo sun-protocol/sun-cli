@@ -4,11 +4,13 @@ describe('legacy CLI V3 deployment', () => {
   it('uses the supplied PM ABI for the legacy single-side positions read', async () => {
     const abi = [{ type: 'function', name: 'positions', inputs: [{ type: 'uint256' }] }]
     const pm = 'TPQzqHbCzQfoVdAV6bLwGDos8Lk2UjXz2R'
+    const factory = 'TLJWAScHZ4Qmk1axyKMzrnoYuu2pSLer1F'
     const token0 = 'TYsbWxNnyTgsZaTFaue9hqpxkU3Fkco94a'
     const token1 = 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf'
     const read = jest
       .fn()
       .mockResolvedValueOnce({ token0, token1, fee: '500' })
+      .mockResolvedValueOnce(factory)
       .mockResolvedValueOnce('TE6MBGu85TcLvDpxMM9PjVobWi1kxDkjcW')
     const multicall = jest.fn().mockResolvedValue([
       { success: true, value: ['123', 25700] },
@@ -29,6 +31,18 @@ describe('legacy CLI V3 deployment', () => {
       functionName: 'positions',
       args: ['706'],
     })
+    expect(read).toHaveBeenNthCalledWith(2, {
+      address: pm,
+      functionSelector: 'factory()',
+      outputs: [{ type: 'address' }],
+    })
+    expect(read).toHaveBeenNthCalledWith(
+      3,
+      expect.objectContaining({
+        address: factory,
+        functionSelector: 'getPool(address,address,uint24)',
+      }),
+    )
   })
 
   it('rejects a missing legacy pool without substituting an SDK deployment', async () => {

@@ -2,6 +2,12 @@ import { Command } from 'commander'
 
 const nileSun = 'TWrZRHY9aKQZcyjpovdH6qeCEyYZrRQDZt'
 const nileUsdt = 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf'
+const legacyV3Pool = {
+  sqrtRatioX96: '79228162514264337593543950336',
+  liquidity: '1000000',
+  tickCurrent: 0,
+  tickSpacing: 60,
+}
 
 function v4PositionSnapshot() {
   return {
@@ -35,12 +41,7 @@ describe('liquidity SDK integration', () => {
     }))
     jest.doMock('../../src/lib/context', () => ({ getNetwork: () => 'nile' }))
     jest.doMock('../../src/lib/sdk/liquidity-v3', () => ({
-      resolveLegacyV3Pool: async () => ({
-        sqrtRatioX96: '79228162514264337593543950336',
-        liquidity: '1000000',
-        tickCurrent: 0,
-        tickSpacing: 60,
-      }),
+      resolveLegacyV3Pool: async () => legacyV3Pool,
     }))
 
     const { registerLiquidityCommands } = require('../../src/commands/liquidity')
@@ -227,10 +228,14 @@ describe('liquidity SDK integration', () => {
   it('passes V3 increase minimum amounts to the SDK', async () => {
     const action = await captureWriteAction([
       'v3:increase',
+      '--pm',
+      'TCustomPositionManager',
       '--token-id',
       '7',
       '--amount0',
       '100',
+      '--amount1',
+      '200',
       '--min0',
       '11',
       '--min1',
@@ -243,11 +248,29 @@ describe('liquidity SDK integration', () => {
       expect.objectContaining({
         tokenId: '7',
         amount0: '100',
+        amount1: '200',
+        pool: legacyV3Pool,
         amount0Min: '11',
         amount1Min: '22',
       }),
     )
     expect(execute.mock.calls[0][0]).not.toHaveProperty('amountInputMode')
+  })
+
+  it('keeps the default V3 dual-sided increase on the existing SDK pool path', async () => {
+    const action = await captureWriteAction([
+      'v3:increase',
+      '--token-id',
+      '7',
+      '--amount0',
+      '100',
+      '--amount1',
+      '200',
+    ])
+    const execute = jest.fn().mockResolvedValue({ txids: ['v3-increase-tx'] })
+
+    await action.execute({ liquidity: { v3: { increase: { execute } } } })
+    expect(execute.mock.calls[0][0].pool).toBeUndefined()
   })
 
   it('preserves automatic V3 mint ticks through the SDK tick range width', async () => {
@@ -287,6 +310,8 @@ describe('liquidity SDK integration', () => {
   it('passes V3 decrease minimum amounts to the SDK', async () => {
     const action = await captureWriteAction([
       'v3:decrease',
+      '--pm',
+      'TCustomPositionManager',
       '--token-id',
       '7',
       '--liquidity',
@@ -303,11 +328,26 @@ describe('liquidity SDK integration', () => {
       expect.objectContaining({
         tokenId: '7',
         liquidity: '100',
+        pool: legacyV3Pool,
         amount0Min: '11',
         amount1Min: '22',
         collectFees: false,
       }),
     )
+  })
+
+  it('keeps the default V3 decrease on the existing SDK pool path', async () => {
+    const action = await captureWriteAction([
+      'v3:decrease',
+      '--token-id',
+      '7',
+      '--liquidity',
+      '100',
+    ])
+    const execute = jest.fn().mockResolvedValue({ txids: ['v3-decrease-tx'] })
+
+    await action.execute({ positions: { v3: { remove: { execute } } } })
+    expect(execute.mock.calls[0][0].pool).toBeUndefined()
   })
 
   it('maps V4 mint defaults and recipient to the public SDK input', async () => {

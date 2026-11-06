@@ -34,9 +34,13 @@ describe('SDK command migrations', () => {
     const readAction = jest.fn().mockResolvedValue(undefined)
     jest.doMock('../../src/lib/command', () => ({ readRuntimeAction: readAction }))
     jest.doMock('../../src/lib/context', () => ({ getNetwork: () => 'nile' }))
-    const readBalances = jest
-      .fn()
-      .mockResolvedValue([{ token: 'TRX', balance: '100', decimals: 6 }])
+    const readBalances = jest.fn().mockImplementation(async (_client, input) =>
+      input.tokens.map((token: string) => ({
+        token,
+        balance: token === 'TRX' ? '100' : '200',
+        ...(token === 'TRX' ? { decimals: 6 } : {}),
+      })),
+    )
     jest.doMock('@sun-protocol/sun-sdk-runtime', () => ({ readBalances }))
 
     const { registerWalletCommands } = require('../../src/commands/wallet')
@@ -44,19 +48,42 @@ describe('SDK command migrations', () => {
     registerWalletCommands(program)
 
     await program.parseAsync(
-      ['node', 'sun', 'wallet', 'balances', '--owner', 'TOwner', '--tokens', 'TRX,TToken'],
+      [
+        'node',
+        'sun',
+        'wallet',
+        'balances',
+        '--owner',
+        'TOwner',
+        '--tokens',
+        'TRX,TToken,T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb',
+      ],
       { from: 'node' },
     )
 
     const opts = readAction.mock.calls[0][0]
-    const tronClient = { kind: 'tron-client' }
+    const readContract = jest.fn().mockResolvedValue('300')
+    const tronClient = { kind: 'tron-client', readContract }
     const runtime = { tronClient }
     await expect(opts.execute({ runtime })).resolves.toEqual([
       { address: 'TOwner', type: 'TRX', tokenAddress: undefined, balance: '100' },
+      { address: 'TOwner', type: 'TRC20', tokenAddress: 'TToken', balance: '200' },
+      {
+        address: 'TOwner',
+        type: 'TRC20',
+        tokenAddress: 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb',
+        balance: '300',
+      },
     ])
     expect(readBalances).toHaveBeenCalledWith(tronClient, {
       owner: 'TOwner',
       tokens: ['TRX', 'TToken'],
+    })
+    expect(readContract).toHaveBeenCalledWith({
+      target: 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb',
+      functionSelector: 'balanceOf(address)',
+      parameters: [{ type: 'address', value: 'TOwner' }],
+      outputs: [{ type: 'uint256' }],
     })
   })
 

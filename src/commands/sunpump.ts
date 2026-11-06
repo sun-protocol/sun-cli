@@ -8,6 +8,7 @@ import { parseDecimalSlippage } from '../lib/slippage'
 import {
   output,
   outputError,
+  getErrorDetail,
   withSpinner,
   printPaginationFooter,
   printKeyValue,
@@ -702,7 +703,7 @@ export function registerSunpumpCommands(program: Command) {
         outputError('Launch failed', err)
         // The server has been seen to return this opaque error when no logo
         // image accompanies the launch — point at the likely fix.
-        if (!imageBase64 && String(err?.message ?? '').includes('Invoke third part error')) {
+        if (!imageBase64 && getErrorDetail(err)?.includes('Invoke third part error')) {
           info('Hint: this error often means the launch lacked a logo — retry with --image <path>.')
         }
       }
