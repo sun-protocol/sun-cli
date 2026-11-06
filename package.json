@@ -1,6 +1,6 @@
 {
   "name": "@sun-protocol/sun-cli",
-  "version": "1.2.2",
+  "version": "2.0.0-beta.0",
   "description": "CLI tool for SUN.IO / SUNSWAP on TRON — for humans and AI agents",
   "main": "dist/bin.js",
   "type": "commonjs",
@@ -8,7 +8,7 @@
     "sun": "./bin/sun"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "npm run clean && tsc",
     "dev": "ts-node src/bin.ts",
     "start": "node dist/bin.js",
     "clean": "rm -rf dist",
@@ -17,7 +17,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "prepublishOnly": "npm run clean && npm run build",
+    "prepublishOnly": "npm run build",
     "publish:beta": "npm publish --tag beta --access public",
     "publish:latest": "npm publish --access public"
   },
@@ -37,6 +37,9 @@
     "ai-agent"
   ],
   "license": "MIT",
+  "engines": {
+    "node": "^22.23.4 || ^24.22.1"
+  },
   "overrides": {
     "utf-8-validate": "5.0.10"
   },
@@ -44,13 +47,19 @@
     "@bankofai/agent-wallet": "^2.3.0",
     "@scure/bip32": "^2.0.1",
     "@scure/bip39": "^2.0.1",
-    "@sun-protocol/sun-kit": "^1.2.0",
+    "@sun-protocol/sun-sdk-api": "0.1.1-beta.1",
+    "@sun-protocol/sun-sdk-chains": "0.1.1-beta.1",
+    "@sun-protocol/sun-sdk-core": "0.1.1-beta.1",
+    "@sun-protocol/sun-sdk-protocols": "0.1.1-beta.1",
+    "@sun-protocol/sun-sdk-runtime": "0.1.1-beta.1",
+    "@sun-protocol/sun-sdk-sunswap-v3": "0.1.1-beta.1",
+    "@sun-protocol/sun-sdk-sunswap-v4": "0.1.1-beta.1",
     "chalk": "^4.1.2",
     "cli-table3": "^0.6.5",
     "commander": "^12.1.0",
     "dotenv": "^16.4.5",
     "ora": "^5.4.1",
-    "tronweb": "^6.2.1"
+    "tronweb": "^6.5.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

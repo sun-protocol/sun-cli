@@ -2,7 +2,7 @@
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Network](https://img.shields.io/badge/Network-TRON-red)
-![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933)
+![Node.js](https://img.shields.io/badge/Node.js-22%20%7C%2024%20LTS-339933)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6)
 
 > A CLI for AI-driven and human-operated DeFi workflows on TRON via the **SUN.IO / SUNSWAP** ecosystem.
@@ -57,7 +57,7 @@
 npm install -g @sun-protocol/sun-cli
 ```
 
-Requires Node.js **20+**.
+Requires Node.js **22.23.4+ (22.x)** or **24.22.1+ (24.x)**. Use the latest patch release of either supported LTS line.
 
 ---
 
@@ -317,11 +317,16 @@ sun liquidity v3:collect  --token-id 123
 ```bash
 sun liquidity v4:mint     --token0 TRX --token1 USDT --amount0 1000000
 sun liquidity v4:mint     --token0 TRX --token1 USDT --amount0 1000000 --create-pool
-sun liquidity v4:increase --token-id 123 --token0 TRX --token1 USDT --amount0 500000
-sun liquidity v4:decrease --token-id 123 --liquidity 1000 --token0 TRX --token1 USDT
+sun liquidity v4:increase --token-id 123 --amount0 500000
+sun liquidity v4:decrease --token-id 123 --liquidity 1000
 sun liquidity v4:collect  --token-id 123
 sun liquidity v4:info     --pm <positionManager> --token-id 123
 ```
+
+For existing V4 positions, the CLI loads the authoritative pool currencies and fee from
+`--token-id`. Optional `--token0/--token1` (supplied together) and `--fee` values are treated as
+assertions. If the supplied token order is reversed, the CLI maps amount and minimum fields to the
+position's on-chain currency order before execution.
 
 ### Protocol & History
 
