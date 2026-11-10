@@ -409,6 +409,7 @@ export function registerLiquidityCommands(program: Command) {
               amountBDesired: amountB,
               amountAMin: opts.minA,
               amountBMin: opts.minB,
+              approvalAmount: 'exact',
               recipient: opts.to,
               ttlSeconds: 1800,
               deadline: opts.deadline,
@@ -566,6 +567,7 @@ export function registerLiquidityCommands(program: Command) {
               amount1,
               amount0Min,
               amount1Min,
+              approvalAmount: 'exact',
               recipient: opts.recipient,
               ttlSeconds: 1800,
               deadline: opts.deadline,
@@ -649,6 +651,7 @@ export function registerLiquidityCommands(program: Command) {
                   : undefined,
               amount0Min: opts.min0,
               amount1Min: opts.min1,
+              approvalAmount: 'exact',
               ttlSeconds: 1800,
               deadline: opts.deadline,
             })

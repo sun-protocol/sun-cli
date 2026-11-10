@@ -194,9 +194,34 @@ describe('liquidity SDK integration', () => {
         ttlSeconds: 1800,
         amount0Min: undefined,
         amount1Min: undefined,
+        approvalAmount: 'exact',
       }),
     )
     expect(execute.mock.calls[0][0]).not.toHaveProperty('amountInputMode')
+  })
+
+  it('uses exact approvals for V2 add liquidity', async () => {
+    const action = await captureWriteAction([
+      'v2:add',
+      '--token-a',
+      'SUN',
+      '--token-b',
+      'USDT',
+      '--amount-a',
+      '100',
+      '--amount-b',
+      '200',
+    ])
+    const execute = jest.fn().mockResolvedValue({ txids: ['v2-add-tx'] })
+
+    await action.execute({ liquidity: { v2: { add: { execute } } } })
+    expect(execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        amountADesired: '100',
+        amountBDesired: '200',
+        approvalAmount: 'exact',
+      }),
+    )
   })
 
   it('passes V2 remove minimum amounts to the SDK', async () => {
@@ -252,6 +277,7 @@ describe('liquidity SDK integration', () => {
         pool: legacyV3Pool,
         amount0Min: '11',
         amount1Min: '22',
+        approvalAmount: 'exact',
       }),
     )
     expect(execute.mock.calls[0][0]).not.toHaveProperty('amountInputMode')
@@ -303,6 +329,7 @@ describe('liquidity SDK integration', () => {
         amount1: '100',
         amount0Min: '22',
         amount1Min: '11',
+        approvalAmount: 'exact',
       }),
     )
   })

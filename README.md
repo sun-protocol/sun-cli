@@ -315,9 +315,9 @@ sun liquidity v3:collect  --token-id 123
 **V4:**
 
 ```bash
-sun liquidity v4:mint     --token0 TRX --token1 USDT --amount0 1000000
-sun liquidity v4:mint     --token0 TRX --token1 USDT --amount0 1000000 --create-pool
-sun liquidity v4:increase --token-id 123 --amount0 500000
+sun liquidity v4:mint     --token0 TRX --token1 USDT --amount0 1000000 --amount1 290000
+sun liquidity v4:mint     --token0 TRX --token1 USDT --amount0 1000000 --amount1 290000 --create-pool
+sun liquidity v4:increase --token-id 123 --amount0 500000 --amount1 145000
 sun liquidity v4:decrease --token-id 123 --liquidity 1000
 sun liquidity v4:collect  --token-id 123
 sun liquidity v4:info     --pm <positionManager> --token-id 123
