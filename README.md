@@ -2,7 +2,7 @@
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Network](https://img.shields.io/badge/Network-TRON-red)
-![Node.js](https://img.shields.io/badge/Node.js-20%2B-339933)
+![Node.js](https://img.shields.io/badge/Node.js-22%20%7C%2024%20LTS-339933)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6)
 
 > A CLI for AI-driven and human-operated DeFi workflows on TRON via the **SUN.IO / SUNSWAP** ecosystem.
@@ -57,7 +57,7 @@
 npm install -g @sun-protocol/sun-cli
 ```
 
-Requires Node.js **20+**.
+Requires Node.js **22.23.4+ (22.x)** or **24.22.1+ (24.x)**. Use the latest patch release of either supported LTS line.
 
 ---
 
@@ -315,13 +315,18 @@ sun liquidity v3:collect  --token-id 123
 **V4:**
 
 ```bash
-sun liquidity v4:mint     --token0 TRX --token1 USDT --amount0 1000000
-sun liquidity v4:mint     --token0 TRX --token1 USDT --amount0 1000000 --create-pool
-sun liquidity v4:increase --token-id 123 --token0 TRX --token1 USDT --amount0 500000
-sun liquidity v4:decrease --token-id 123 --liquidity 1000 --token0 TRX --token1 USDT
+sun liquidity v4:mint     --token0 TRX --token1 USDT --amount0 1000000 --amount1 290000
+sun liquidity v4:mint     --token0 TRX --token1 USDT --amount0 1000000 --amount1 290000 --create-pool
+sun liquidity v4:increase --token-id 123 --amount0 500000 --amount1 145000
+sun liquidity v4:decrease --token-id 123 --liquidity 1000
 sun liquidity v4:collect  --token-id 123
 sun liquidity v4:info     --pm <positionManager> --token-id 123
 ```
+
+For existing V4 positions, the CLI loads the authoritative pool currencies and fee from
+`--token-id`. Optional `--token0/--token1` (supplied together) and `--fee` values are treated as
+assertions. If the supplied token order is reversed, the CLI maps amount and minimum fields to the
+position's on-chain currency order before execution.
 
 ### Protocol & History
 
@@ -469,19 +474,53 @@ sun --output tsv token list --protocol V3
 
 ## Built-In Token Symbols
 
-Most commands accept these symbols anywhere a token is expected.
+`swap`, `swap:quote`, `price <token>`, `pool list --token`, and liquidity token options
+accept these case-insensitive aliases or a full token address. Unknown aliases are rejected
+before a request is sent. Other address-only options, including `wallet balances --tokens`,
+`token list --address`, and `pair info --token`, still require addresses (except native `TRX`
+in wallet balances).
 
-| Symbol | Address                              | Decimals |
-| ------ | ------------------------------------ | -------- |
-| `TRX`  | `T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb` | 6        |
-| `WTRX` | `TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR` | 6        |
-| `USDT` | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | 6        |
-| `USDC` | `TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8` | 6        |
-| `USDD` | `TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn` | 18       |
-| `SUN`  | `TSSMHYeV2uE9qYH95DqyoCuNCzEL1NvU3S` | 18       |
-| `JST`  | `TCFLL5dx5ZJdKnWuesXxi1VPwjLVmWZZy9` | 18       |
-| `BTT`  | `TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4` | 18       |
-| `WIN`  | `TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7` | 6        |
+**Mainnet (default)**
+
+| Symbol    | Address                              | Decimals |
+| --------- | ------------------------------------ | -------- |
+| `TRX`     | `T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb` | 6        |
+| `WTRX`    | `TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR` | 6        |
+| `USDT`    | `TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t` | 6        |
+| `USDCOLD` | `TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8` | 6        |
+| `USDDOLD` | `TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn` | 18       |
+| `USDD`    | `TXDk8mbtRbXeYuMNS83CfKPaYYT8XWv9Hz` | 18       |
+| `SUN`     | `TSSMHYeV2uE9qYH95DqyoCuNCzEL1NvU3S` | 18       |
+| `JST`     | `TCFLL5dx5ZJdKnWuesXxi1VPwjLVmWZZy9` | 18       |
+| `BTT`     | `TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4` | 18       |
+| `WIN`     | `TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7` | 6        |
+| `NFT`     | `TFczxzPhnThNSqr5by8tvxsdCFRRz6cPNq` | 6        |
+| `TUSD`    | `TUpMhErZL2fhh4sVNULAbNKLokS4GjC1F4` | 18       |
+| `USDJ`    | `TMwFHYXLJaRUPeW6421aqXL4ZEzPRFGkGT` | 18       |
+
+**Nile (`--network nile`)**
+
+| Symbol    | Address                              | Decimals |
+| --------- | ------------------------------------ | -------- |
+| `TRX`     | `T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb` | 6        |
+| `WTRX`    | `TYsbWxNnyTgsZaTFaue9hqpxkU3Fkco94a` | 6        |
+| `USDT`    | `TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf` | 6        |
+| `USDCOLD` | `TWMCMCoJPqCGw5RR7eChF2HoY3a9B8eYA3` | 6        |
+| `USDDOLD` | `TGjgvdTWWrybVLaVeFqSyVqJQWjxqRYbaK` | 18       |
+| `USDD`    | `TZ78R2E6ejfFhxq8hxrmuqT6hGBxjHQbo4` | 18       |
+| `SUN`     | `TWrZRHY9aKQZcyjpovdH6qeCEyYZrRQDZt` | 18       |
+| `USDJ`    | `TLBaRhANQoJFTqre9Nf1mjuwNWjCJeYqUL` | 18       |
+| `TUSD`    | `TRz7J6dD2QWxBoumfYt4b3FaiRG23pXfop` | 18       |
+| `JST`     | `TF17BgPaZYbz8oxbjhriubPDsA7ArKoLX3` | 18       |
+
+**Migrating existing scripts:** `USDD` now selects the new contract. Use `USDDOLD` or
+the original address to operate on legacy USDD balances and pools. `USDC` is no longer an
+alias; replace it with `USDCOLD` or its address. Existing V3/V4 positions remain tied to
+their original tokens. For V4 position commands, use the legacy alias in explicit
+`--token0/--token1` assertions, or omit both options to read the pair from `--token-id`.
+
+These names are CLI aliases. Token/pool search results and swap-route symbols come from
+the APIs and may use different names; compare contract addresses to identify the asset.
 
 Symbols and raw addresses are interchangeable:
 

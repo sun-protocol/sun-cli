@@ -17,6 +17,55 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `--dry-run`. On success prints the new token's contract address, creation
   tx hash and logo URL. Mainnet only.
 
+## [2.0.0-beta.6] — 2026-11-10
+
+### Changed
+
+- Update mainnet and Nile token aliases to use the current USDD contracts and
+  expose legacy contracts as `USDCOLD` and `USDDOLD`.
+- Update SUN SDK dependencies to `0.1.1-beta.3`.
+
+### Fixed
+
+- Reject invalid token filters before querying pools.
+- Preserve exact approval amounts for V2 and V3 liquidity operations.
+
+## [2.0.0-beta.5] — 2026-11-09
+
+### Fixed
+
+- Update SUN SDK dependencies to `0.1.1-beta.2` for V4 pool reads.
+
+## [2.0.0-beta.4] — 2026-11-06
+
+### Fixed
+
+- Resolve V3 pools correctly for custom position managers and legacy factory defaults.
+- Preserve legacy wallet balance handling for zero-address token inputs.
+- Surface actionable SDK error details and retain the SunPump missing-logo hint.
+
+## [2.0.0-beta.3] — 2026-11-03
+
+### Fixed
+
+- Show the V4 NFT recipient in the transaction summary.
+
+## [2.0.0-beta.2] — 2026-11-02
+
+### Fixed
+
+- Reject zero-only liquidity inputs before dry-run.
+
+## [2.0.0-beta.1] — 2026-11-02
+
+### Fixed
+
+- Restore CLI compatibility with SUN SDK `0.1.1-beta.1`, including runtime,
+  transaction results, SunPump quotes, and contract operations.
+- Align V3/V4 liquidity amounts, tick ranges, position metadata, and fee
+  collection with SDK semantics while preserving CLI defaults.
+- Validate decimal slippage inputs before submitting swap and liquidity actions.
+
 ## [1.2.0] — 2026-05-22
 
 End-to-end SunPump support: read-only discovery for the SunPump meme-token
