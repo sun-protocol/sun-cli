@@ -11,13 +11,14 @@ export interface TokenInfo {
   decimals: number
 }
 
-// Mainnet tokens (aligned with common_tokens.json + common extras)
+// Mainnet CLI token aliases.
 const MAINNET_TOKENS: Record<string, TokenInfo> = {
   TRX: { symbol: 'TRX', address: TRX_ADDRESS, decimals: 6 },
   WTRX: { symbol: 'WTRX', address: WTRX_MAINNET, decimals: 6 },
   USDT: { symbol: 'USDT', address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', decimals: 6 },
-  USDC: { symbol: 'USDC', address: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8', decimals: 6 },
-  USDD: { symbol: 'USDD', address: 'TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn', decimals: 18 },
+  USDCOLD: { symbol: 'USDCOLD', address: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8', decimals: 6 },
+  USDDOLD: { symbol: 'USDDOLD', address: 'TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn', decimals: 18 },
+  USDD: { symbol: 'USDD', address: 'TXDk8mbtRbXeYuMNS83CfKPaYYT8XWv9Hz', decimals: 18 },
   SUN: { symbol: 'SUN', address: 'TSSMHYeV2uE9qYH95DqyoCuNCzEL1NvU3S', decimals: 18 },
   JST: { symbol: 'JST', address: 'TCFLL5dx5ZJdKnWuesXxi1VPwjLVmWZZy9', decimals: 18 },
   BTT: { symbol: 'BTT', address: 'TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4', decimals: 18 },
@@ -27,12 +28,14 @@ const MAINNET_TOKENS: Record<string, TokenInfo> = {
   USDJ: { symbol: 'USDJ', address: 'TMwFHYXLJaRUPeW6421aqXL4ZEzPRFGkGT', decimals: 18 },
 }
 
-// Nile testnet tokens (from common_tokens.json)
+// Nile testnet CLI token aliases.
 const NILE_TOKENS: Record<string, TokenInfo> = {
   TRX: { symbol: 'TRX', address: TRX_ADDRESS, decimals: 6 },
   WTRX: { symbol: 'WTRX', address: WTRX_NILE, decimals: 6 },
   USDT: { symbol: 'USDT', address: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf', decimals: 6 },
-  USDC: { symbol: 'USDC', address: 'TWMCMCoJPqCGw5RR7eChF2HoY3a9B8eYA3', decimals: 6 },
+  USDCOLD: { symbol: 'USDCOLD', address: 'TWMCMCoJPqCGw5RR7eChF2HoY3a9B8eYA3', decimals: 6 },
+  USDDOLD: { symbol: 'USDDOLD', address: 'TGjgvdTWWrybVLaVeFqSyVqJQWjxqRYbaK', decimals: 18 },
+  USDD: { symbol: 'USDD', address: 'TZ78R2E6ejfFhxq8hxrmuqT6hGBxjHQbo4', decimals: 18 },
   SUN: { symbol: 'SUN', address: 'TWrZRHY9aKQZcyjpovdH6qeCEyYZrRQDZt', decimals: 18 },
   USDJ: { symbol: 'USDJ', address: 'TLBaRhANQoJFTqre9Nf1mjuwNWjCJeYqUL', decimals: 18 },
   TUSD: { symbol: 'TUSD', address: 'TRz7J6dD2QWxBoumfYt4b3FaiRG23pXfop', decimals: 18 },

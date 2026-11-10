@@ -1,15 +1,14 @@
 import { Command } from 'commander'
 import { getNetwork } from '../lib/context'
 import { readApiAction } from '../lib/command'
-import { formatUsd, formatPct, formatTime } from '../lib/output'
-import { tryResolveTokenAddress } from '../lib/tokens'
+import { formatUsd, formatPct, formatTime, outputError } from '../lib/output'
+import { resolveTokenAddress } from '../lib/tokens'
 import { TRX_ADDRESS, WTRX_MAINNET, WTRX_NILE } from '../lib/sdk/constants'
 
 function resolveTokenForPoolQuery(input: string | undefined, network: string): string | undefined {
-  if (!input) return undefined
+  if (input === undefined) return undefined
 
-  const resolved = tryResolveTokenAddress(input, network)
-  if (!resolved) return input
+  const resolved = resolveTokenAddress(input, network)
 
   if (resolved === TRX_ADDRESS) {
     return network === 'nile' ? WTRX_NILE : WTRX_MAINNET
@@ -32,7 +31,13 @@ export function registerPoolCommands(program: Command) {
     .option('--no-blacklist', 'Include blacklisted')
     .action(async (opts) => {
       const network = getNetwork()
-      const tokenAddress = resolveTokenForPoolQuery(opts.token, network)
+      let tokenAddress: string | undefined
+      try {
+        tokenAddress = resolveTokenForPoolQuery(opts.token, network)
+      } catch (err) {
+        outputError('Invalid token', err)
+        return
+      }
 
       await readApiAction({
         spinnerLabel: 'Fetching pools...',
