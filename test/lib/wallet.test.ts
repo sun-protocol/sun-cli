@@ -20,7 +20,6 @@ describe('wallet', () => {
 
   function loadWalletModule(options?: {
     activeWallet?: Record<string, any>
-    tronWeb?: Record<string, any>
     getActiveWalletError?: Error
     getActiveWalletValue?: Record<string, any> | null
   }) {
@@ -29,16 +28,6 @@ describe('wallet', () => {
       signTransaction: jest.fn().mockResolvedValue('{"txID":"signed"}'),
       signMessage: jest.fn().mockResolvedValue('signed-message'),
       signTypedData: jest.fn().mockResolvedValue('0xsignedtypeddata'),
-    }
-
-    const tronWeb = options?.tronWeb ?? {
-      address: {
-        toHex: jest.fn().mockReturnValue('41abc'),
-        fromHex: jest.fn().mockReturnValue('TWalletAddress'),
-      },
-      trx: {
-        sendRawTransaction: jest.fn().mockResolvedValue({ result: true, txid: 'tx-123' }),
-      },
     }
 
     const provider = {
@@ -54,24 +43,17 @@ describe('wallet', () => {
     }
 
     const resolveWalletProvider = jest.fn().mockReturnValue(provider)
-    const createReadonlyTronWeb = jest.fn().mockResolvedValue(tronWeb)
 
     jest.doMock('@bankofai/agent-wallet', () => ({
       resolveWalletProvider,
-    }))
-
-    jest.doMock('@sun-protocol/sun-kit', () => ({
-      createReadonlyTronWeb,
     }))
 
     const walletModule = require('../../src/lib/wallet')
     return {
       walletModule,
       activeWallet,
-      tronWeb,
       provider,
       resolveWalletProvider,
-      createReadonlyTronWeb,
     }
   }
 
@@ -116,78 +98,36 @@ describe('wallet', () => {
     await expect(walletModule.getWalletAddress()).resolves.toBe('TWalletAddress')
   })
 
-  it('builds tronWeb with the active wallet as default address', async () => {
+  it('returns an SDK wallet adapter that signs and normalizes typed-data signatures', async () => {
     process.env.AGENT_WALLET_PASSWORD = 'secret'
 
-    const { walletModule, tronWeb, createReadonlyTronWeb } = loadWalletModule()
-
-    await walletModule.initWallet()
-    const wallet = walletModule.getWallet() as any
-    const resolvedTronWeb = await wallet.getTronWeb('nile')
-
-    expect(createReadonlyTronWeb).toHaveBeenCalledWith('nile')
-    expect(resolvedTronWeb).toBe(tronWeb)
-    expect(tronWeb.address.toHex).toHaveBeenCalledWith('TWalletAddress')
-    expect(tronWeb.address.fromHex).toHaveBeenCalledWith('41abc')
-    expect((tronWeb as any).defaultAddress).toEqual({
-      hex: '41abc',
-      base58: 'TWalletAddress',
-    })
-  })
-
-  it('signs, broadcasts, and normalizes typed-data signatures', async () => {
-    process.env.AGENT_WALLET_PASSWORD = 'secret'
-
-    const { walletModule, activeWallet, tronWeb } = loadWalletModule({
+    const { walletModule, activeWallet } = loadWalletModule({
       activeWallet: {
         getAddress: jest.fn().mockResolvedValue('TWalletAddress'),
         signTransaction: jest.fn().mockResolvedValue('{"txID":"signed","raw_data":{"x":1}}'),
         signMessage: jest.fn().mockResolvedValue('signed-message'),
         signTypedData: jest.fn().mockResolvedValue('0xdeadbeef'),
       },
-      tronWeb: {
-        address: {
-          toHex: jest.fn().mockReturnValue('41abc'),
-          fromHex: jest.fn().mockReturnValue('TWalletAddress'),
-        },
-        trx: {
-          sendRawTransaction: jest.fn().mockResolvedValue({ result: true, txid: 'tx-999' }),
-        },
-      },
     })
 
     await walletModule.initWallet()
     const wallet = walletModule.getWallet() as any
 
-    await expect(
-      wallet.signAndBroadcast({ transaction: { raw_data: { contract: [] } } }, 'mainnet'),
-    ).resolves.toEqual({ result: true, txid: 'tx-999' })
-    expect(activeWallet.signTransaction).toHaveBeenCalledWith({ raw_data: { contract: [] } })
-    expect(tronWeb.trx.sendRawTransaction).toHaveBeenCalledWith({
+    expect(wallet.kind).toBe('custom')
+    await expect(wallet.signTransaction({ raw_data: { contract: [] } })).resolves.toEqual({
       txID: 'signed',
       raw_data: { x: 1 },
     })
+    expect(activeWallet.signTransaction).toHaveBeenCalledWith({ raw_data: { contract: [] } })
 
-    await expect(
-      wallet.signTypedData(
-        'Permit',
-        { name: 'Sun', chainId: 1, verifyingContract: 'TContract' },
-        { Permit: [{ name: 'owner', type: 'address' }] },
-        { owner: 'TWalletAddress' },
-      ),
-    ).resolves.toBe('deadbeef')
-    expect(activeWallet.signTypedData).toHaveBeenCalledWith({
+    const payload = {
       domain: { name: 'Sun', chainId: 1, verifyingContract: 'TContract' },
-      types: {
-        EIP712Domain: [
-          { name: 'name', type: 'string' },
-          { name: 'chainId', type: 'uint256' },
-          { name: 'verifyingContract', type: 'address' },
-        ],
-        Permit: [{ name: 'owner', type: 'address' }],
-      },
-      primaryType: 'Permit',
+      types: { Permit: [{ name: 'owner', type: 'address' }] },
       message: { owner: 'TWalletAddress' },
+    }
+    await expect(wallet.signTypedData(payload)).resolves.toBe('deadbeef')
+    expect(activeWallet.signTypedData).toHaveBeenCalledWith({
+      ...payload,
     })
   })
 })

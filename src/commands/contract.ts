@@ -1,6 +1,15 @@
 import { Command } from 'commander'
 import { getNetwork } from '../lib/context'
-import { writeAction, readAction } from '../lib/command'
+import { writeRuntimeAction as writeAction, readRuntimeAction as readAction } from '../lib/command'
+import { toCliTxResult } from '../lib/sdk/compat'
+
+function parseAbi(value: string | undefined): any[] | undefined {
+  return value === undefined ? undefined : JSON.parse(value)
+}
+
+function parseValue(value: string | undefined): bigint | undefined {
+  return value === undefined ? undefined : BigInt(value)
+}
 
 export function registerContractCommands(program: Command) {
   const contract = program
@@ -16,16 +25,13 @@ export function registerContractCommands(program: Command) {
       await readAction({
         spinnerLabel: `Reading ${functionName}...`,
         errorLabel: 'Contract read failed',
-        execute: (kit) =>
-          kit.readContract(
-            {
-              address,
-              functionName,
-              args: JSON.parse(opts.args),
-              abi: opts.abi ? JSON.parse(opts.abi) : undefined,
-            },
-            getNetwork(),
-          ),
+        execute: (sdk) =>
+          sdk.runtime.contract.read({
+            address,
+            functionName,
+            args: JSON.parse(opts.args),
+            abi: parseAbi(opts.abi),
+          }),
         transform: (result) => ({ result }),
       })
     })
@@ -50,14 +56,15 @@ export function registerContractCommands(program: Command) {
         spinnerLabel: `Sending ${functionName}...`,
         errorLabel: 'Contract send failed',
         execute: (kit) =>
-          kit.sendContractTx({
-            address,
-            functionName,
-            args: JSON.parse(opts.args),
-            value: opts.value,
-            abi: opts.abi ? JSON.parse(opts.abi) : undefined,
-            network: getNetwork(),
-          }),
+          kit.runtime.contract
+            .write({
+              address,
+              functionName,
+              args: JSON.parse(opts.args),
+              callValue: parseValue(opts.value),
+              abi: parseAbi(opts.abi),
+            })
+            .then(toCliTxResult),
       })
     })
 }

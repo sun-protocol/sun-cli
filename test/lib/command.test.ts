@@ -142,10 +142,68 @@ describe('command helpers', () => {
     })
   })
 
+  it('prepares read-only context before displaying the confirmation summary', async () => {
+    const { commandModule, printSummary, confirm, withSpinner } = loadCommandModule()
+    const summary: Record<string, unknown> = { Network: 'nile', Position: '(loading)' }
+    const prepare = jest.fn().mockImplementation(async () => {
+      summary.Position = 'tokenId 7: SUN/USDT'
+    })
+    const execute = jest.fn().mockResolvedValue({ txid: 'prepared-tx' })
+
+    await commandModule.writeAction({
+      title: 'V4 Increase',
+      summary,
+      prepareLabel: 'Loading V4 position...',
+      prepare,
+      confirmMsg: 'Execute?',
+      spinnerLabel: 'Executing...',
+      errorLabel: 'Increase failed',
+      execute,
+    })
+
+    expect(prepare).toHaveBeenCalledWith({ kind: 'kit' })
+    expect(printSummary).toHaveBeenCalledWith('V4 Increase', {
+      Network: 'nile',
+      Position: 'tokenId 7: SUN/USDT',
+    })
+    expect(withSpinner.mock.calls.map(([label]) => label)).toEqual([
+      'Loading V4 position...',
+      'Executing...',
+    ])
+    expect(prepare.mock.invocationCallOrder[0]).toBeLessThan(confirm.mock.invocationCallOrder[0])
+    expect(confirm.mock.invocationCallOrder[0]).toBeLessThan(execute.mock.invocationCallOrder[0])
+  })
+
+  it('stops before confirmation when transaction preparation fails', async () => {
+    const { commandModule, outputError, confirm, printSummary } = loadCommandModule()
+    const error = Object.assign(new Error('Position token pair mismatch'), {
+      code: 'INVALID_PARAMS',
+    })
+    const execute = jest.fn()
+
+    await commandModule.writeAction({
+      title: 'V4 Increase',
+      summary: { Network: 'nile' },
+      prepare: async () => {
+        throw error
+      },
+      confirmMsg: 'Execute?',
+      spinnerLabel: 'Executing...',
+      errorLabel: 'V4 increase liquidity failed',
+      execute,
+    })
+
+    expect(outputError).toHaveBeenCalledWith('V4 increase liquidity failed', error)
+    expect(printSummary).not.toHaveBeenCalled()
+    expect(confirm).not.toHaveBeenCalled()
+    expect(execute).not.toHaveBeenCalled()
+  })
+
   it('does not require a wallet for dry-run write actions', async () => {
     const { commandModule, ensureWallet, getKit, output, confirm, withSpinner } =
       loadCommandModule()
     const execute = jest.fn()
+    const prepare = jest.fn()
 
     commandModule.setDryRun(true)
 
@@ -155,6 +213,7 @@ describe('command helpers', () => {
       confirmMsg: 'Execute?',
       spinnerLabel: 'Executing...',
       errorLabel: 'Swap failed',
+      prepare,
       execute,
     })
 
@@ -167,6 +226,7 @@ describe('command helpers', () => {
     expect(getKit).not.toHaveBeenCalled()
     expect(confirm).not.toHaveBeenCalled()
     expect(withSpinner).not.toHaveBeenCalled()
+    expect(prepare).not.toHaveBeenCalled()
     expect(execute).not.toHaveBeenCalled()
   })
 })

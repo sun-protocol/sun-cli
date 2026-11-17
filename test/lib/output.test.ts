@@ -5,6 +5,7 @@ import {
   setJsonMode,
   outputJson,
   outputError,
+  getErrorDetail,
   formatUsd,
   formatPct,
   formatAmount,
@@ -153,6 +154,40 @@ describe('outputError structured codes', () => {
     outputError('Operation failed', err)
     const parsed = JSON.parse(stdoutData)
     expect(parsed.code).toBe('POOL_NOT_FOUND')
+  })
+
+  it('preserves a node rejection reason from SDK context without dumping raw context', () => {
+    const err = Object.assign(new Error('Transaction broadcast failed'), {
+      code: 'SDK_RUNTIME_ERROR',
+      context: {
+        raw: {
+          code: 'CONTRACT_VALIDATE_ERROR',
+          message: 'balance is not sufficient',
+          transaction: { raw_data: 'must-not-be-printed' },
+        },
+      },
+    })
+    outputError('Contract send failed', err)
+    const parsed = JSON.parse(stdoutData)
+    expect(parsed.detail).toBe(
+      'Transaction broadcast failed: CONTRACT_VALIDATE_ERROR: balance is not sufficient',
+    )
+    expect(stdoutData).not.toContain('must-not-be-printed')
+  })
+
+  it('preserves an HTTP business reason but does not expose response bodies', () => {
+    const err = Object.assign(new Error('HTTP 500 from SunPump'), {
+      code: 'SDK_API_ERROR',
+      context: {
+        apiMessage: 'Invoke third part error',
+        body: '{"secret":"must-not-be-printed"}',
+      },
+    })
+    expect(getErrorDetail(err)).toBe('HTTP 500 from SunPump: Invoke third part error')
+    outputError('Launch failed', err)
+    const parsed = JSON.parse(stdoutData)
+    expect(parsed.detail).toBe('HTTP 500 from SunPump: Invoke third part error')
+    expect(stdoutData).not.toContain('must-not-be-printed')
   })
 
   it('classifies network errors', () => {

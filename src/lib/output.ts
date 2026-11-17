@@ -74,7 +74,7 @@ export function outputJson(data: unknown) {
 }
 
 function classifyError(message: string, error?: unknown): string {
-  // Prefer error object's own code (e.g. SunKitError.code)
+  // Prefer error object's own code from SDK/API errors.
   if (
     error &&
     typeof error === 'object' &&
@@ -96,17 +96,60 @@ function classifyError(message: string, error?: unknown): string {
   return 'UNKNOWN_ERROR'
 }
 
+const MAX_ERROR_DETAIL_LENGTH = 500
+
+function safeErrorText(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const printable = Array.from(value, (character) => {
+    const code = character.charCodeAt(0)
+    return code < 32 || code === 127 ? ' ' : character
+  }).join('')
+  const normalized = printable.replace(/\s+/g, ' ').trim()
+  if (!normalized) return undefined
+  return normalized.slice(0, MAX_ERROR_DETAIL_LENGTH)
+}
+
+function sdkContextReason(error: Error): string | undefined {
+  const context = (error as Error & { context?: unknown }).context
+  if (!context || typeof context !== 'object') return undefined
+  const record = context as Record<string, unknown>
+  const apiMessage = safeErrorText(record.apiMessage)
+  if (apiMessage) return apiMessage
+
+  const raw = record.raw
+  if (!raw || typeof raw !== 'object') return undefined
+  const rawRecord = raw as Record<string, unknown>
+  const code = safeErrorText(rawRecord.code)
+  const message =
+    safeErrorText(rawRecord.message) ??
+    safeErrorText(rawRecord.Message) ??
+    safeErrorText(rawRecord.Error)
+  if (code && message && code !== message) return `${code}: ${message}`
+  return message ?? code
+}
+
+/** Preserve actionable legacy error text without dumping an SDK error's full context. */
+export function getErrorDetail(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined
+  const message = safeErrorText(error.message)
+  const reason = sdkContextReason(error)
+  if (!message) return reason
+  if (!reason || message.includes(reason)) return message
+  return `${message}: ${reason}`.slice(0, MAX_ERROR_DETAIL_LENGTH)
+}
+
 export function outputError(message: string, error?: unknown) {
+  const detail = getErrorDetail(error)
   if (isJsonMode()) {
     const payload: Record<string, unknown> = { error: message, code: classifyError(message, error) }
-    if (error instanceof Error && error.message !== message) {
-      payload.detail = error.message
+    if (detail && detail !== message) {
+      payload.detail = detail
     }
     process.stdout.write(JSON.stringify(payload) + '\n')
   } else {
     process.stderr.write(chalk.red(`Error: ${message}`) + '\n')
-    if (error instanceof Error && error.message !== message) {
-      process.stderr.write(chalk.gray(error.message) + '\n')
+    if (detail && detail !== message) {
+      process.stderr.write(chalk.gray(detail) + '\n')
     }
   }
   process.exitCode = 1

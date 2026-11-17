@@ -8,7 +8,7 @@ import {
 } from '../../src/lib/tokens'
 
 /**
- * Expected tokens aligned with common_tokens.json.
+ * Expected CLI aliases and token metadata for each network.
  * If a token is added/removed from the registry, update this map and src/lib/tokens.ts together.
  */
 const EXPECTED: Record<string, Record<string, { address: string; decimals: number }>> = {
@@ -16,7 +16,9 @@ const EXPECTED: Record<string, Record<string, { address: string; decimals: numbe
     TRX: { address: 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb', decimals: 6 },
     WTRX: { address: 'TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR', decimals: 6 },
     USDT: { address: 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t', decimals: 6 },
-    USDD: { address: 'TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn', decimals: 18 },
+    USDCOLD: { address: 'TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8', decimals: 6 },
+    USDDOLD: { address: 'TPYmHEhy5n8TCEfYGqW2rPxsghSfzghPDn', decimals: 18 },
+    USDD: { address: 'TXDk8mbtRbXeYuMNS83CfKPaYYT8XWv9Hz', decimals: 18 },
     BTT: { address: 'TAFjULxiVgT4qWk6UZwjqwZXTSaGaqnVp4', decimals: 18 },
     JST: { address: 'TCFLL5dx5ZJdKnWuesXxi1VPwjLVmWZZy9', decimals: 18 },
     SUN: { address: 'TSSMHYeV2uE9qYH95DqyoCuNCzEL1NvU3S', decimals: 18 },
@@ -25,7 +27,9 @@ const EXPECTED: Record<string, Record<string, { address: string; decimals: numbe
     TRX: { address: 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb', decimals: 6 },
     WTRX: { address: 'TYsbWxNnyTgsZaTFaue9hqpxkU3Fkco94a', decimals: 6 },
     USDT: { address: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf', decimals: 6 },
-    USDC: { address: 'TWMCMCoJPqCGw5RR7eChF2HoY3a9B8eYA3', decimals: 6 },
+    USDCOLD: { address: 'TWMCMCoJPqCGw5RR7eChF2HoY3a9B8eYA3', decimals: 6 },
+    USDDOLD: { address: 'TGjgvdTWWrybVLaVeFqSyVqJQWjxqRYbaK', decimals: 18 },
+    USDD: { address: 'TZ78R2E6ejfFhxq8hxrmuqT6hGBxjHQbo4', decimals: 18 },
     SUN: { address: 'TWrZRHY9aKQZcyjpovdH6qeCEyYZrRQDZt', decimals: 18 },
     USDJ: { address: 'TLBaRhANQoJFTqre9Nf1mjuwNWjCJeYqUL', decimals: 18 },
     TUSD: { address: 'TRz7J6dD2QWxBoumfYt4b3FaiRG23pXfop', decimals: 18 },
@@ -33,7 +37,7 @@ const EXPECTED: Record<string, Record<string, { address: string; decimals: numbe
   },
 }
 
-describe('token registry (common_tokens.json alignment)', () => {
+describe('token registry', () => {
   for (const [network, tokens] of Object.entries(EXPECTED)) {
     describe(network, () => {
       for (const [symbol, info] of Object.entries(tokens)) {
@@ -43,8 +47,7 @@ describe('token registry (common_tokens.json alignment)', () => {
 
         it(`reverse-lookups ${info.address} → ${symbol}`, () => {
           const token = getTokenByAddress(info.address, network)
-          expect(token).not.toBeNull()
-          expect(token!.symbol).toBe(symbol)
+          expect(token).toEqual({ symbol, ...info })
         })
       }
 
