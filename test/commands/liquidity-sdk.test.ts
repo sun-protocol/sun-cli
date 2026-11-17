@@ -194,10 +194,10 @@ describe('liquidity SDK integration', () => {
         ttlSeconds: 1800,
         amount0Min: undefined,
         amount1Min: undefined,
+        amountInputMode: 'legacy-cli',
         approvalAmount: 'exact',
       }),
     )
-    expect(execute.mock.calls[0][0]).not.toHaveProperty('amountInputMode')
   })
 
   it('uses exact approvals for V2 add liquidity', async () => {
@@ -277,10 +277,10 @@ describe('liquidity SDK integration', () => {
         pool: legacyV3Pool,
         amount0Min: '11',
         amount1Min: '22',
+        amountInputMode: 'legacy-cli',
         approvalAmount: 'exact',
       }),
     )
-    expect(execute.mock.calls[0][0]).not.toHaveProperty('amountInputMode')
   })
 
   it('keeps the default V3 dual-sided increase on the existing SDK pool path', async () => {
@@ -409,12 +409,12 @@ describe('liquidity SDK integration', () => {
         tickLower: 11350,
         tickUpper: 13350,
         amount0: '100',
+        amountInputMode: 'legacy-cli',
         recipient: 'TOwner',
         sweepRecipient: 'TOwner',
       }),
     )
     expect(execute.mock.calls[0][0]).not.toHaveProperty('owner')
-    expect(execute.mock.calls[0][0]).not.toHaveProperty('amountInputMode')
   })
 
   it('shows the active wallet as the default V4 NFT recipient', async () => {
@@ -525,7 +525,7 @@ describe('liquidity SDK integration', () => {
     })
   })
 
-  it('uses tokenId-derived V4 pool data and standard SDK amount semantics', async () => {
+  it('uses tokenId-derived V4 pool data and legacy CLI amount semantics', async () => {
     const action = await captureWriteAction([
       'v4:increase',
       '--token-id',
@@ -558,6 +558,7 @@ describe('liquidity SDK integration', () => {
       tokenId: '7',
       amount0: undefined,
       amount1: '200',
+      amountInputMode: 'legacy-cli',
       slippage: '1%',
       includeComputedMetadata: true,
       transactionMode: 'multicall',

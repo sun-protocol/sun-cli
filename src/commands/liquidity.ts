@@ -565,6 +565,7 @@ export function registerLiquidityCommands(program: Command) {
                 opts.tickLower === undefined || opts.tickUpper === undefined ? 100 : undefined,
               amount0,
               amount1,
+              amountInputMode: 'legacy-cli',
               amount0Min,
               amount1Min,
               approvalAmount: 'exact',
@@ -639,6 +640,7 @@ export function registerLiquidityCommands(program: Command) {
               tokenId: opts.tokenId,
               amount0: opts.amount0,
               amount1: opts.amount1,
+              amountInputMode: 'legacy-cli',
               includeComputedMetadata: true,
               pool:
                 opts.pm || BigInt(opts.amount0 ?? '0') === 0n || BigInt(opts.amount1 ?? '0') === 0n
@@ -854,6 +856,7 @@ export function registerLiquidityCommands(program: Command) {
               ...ticks,
               amount0: opts.amount0,
               amount1: opts.amount1,
+              amountInputMode: 'legacy-cli',
               slippage: slippage?.sdk,
               includeComputedMetadata: true,
               transactionMode: 'multicall',
@@ -968,6 +971,7 @@ export function registerLiquidityCommands(program: Command) {
               tokenId: opts.tokenId,
               amount0,
               amount1,
+              amountInputMode: 'legacy-cli',
               slippage: slippage?.sdk,
               includeComputedMetadata: true,
               transactionMode: 'multicall',

@@ -5,10 +5,12 @@ describe('SDK factory', () => {
   })
 
   it('defaults to mainnet and accepts nile', () => {
-    const { getNetworkFromEnv } = require('../../../src/lib/sdk/factory')
+    const { getNetworkFromEnv, getCliRouterEndpoint } = require('../../../src/lib/sdk/factory')
 
     expect(getNetworkFromEnv({})).toBe('mainnet')
     expect(getNetworkFromEnv({ TRON_NETWORK: 'nile' })).toBe('nile')
+    expect(getCliRouterEndpoint('mainnet')).toBe('https://rot.endjgfsv.link')
+    expect(getCliRouterEndpoint('nile')).toBe('https://tnrouter.endjgfsv.link')
   })
 
   it('sets a non-signing caller address for TronGrid constant calls', () => {

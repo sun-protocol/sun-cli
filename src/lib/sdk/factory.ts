@@ -23,6 +23,15 @@ export interface SdkRuntimeOptions {
   rpcUrl?: string
 }
 
+const CLI_ROUTER_ENDPOINTS: Record<Network, string> = {
+  mainnet: 'https://rot.endjgfsv.link',
+  nile: 'https://tnrouter.endjgfsv.link',
+}
+
+export function getCliRouterEndpoint(network: Network): string {
+  return CLI_ROUTER_ENDPOINTS[network]
+}
+
 export function getNetworkFromEnv(env: NodeJS.ProcessEnv = process.env): Network {
   const network = env.TRON_NETWORK || 'mainnet'
   if (network === 'mainnet' || network === 'nile') return network
@@ -98,7 +107,11 @@ export async function withLiquidityAbi(
     },
     getWallet: () => sdk.runtime.getWallet(),
   })
-  const scoped = await SunSDK.create({ network: sdk.network, runtime })
+  const scoped = await SunSDK.create({
+    network: sdk.network,
+    runtime,
+    endpoints: sdk.context.endpoints,
+  })
   return scoped as CliSunSDK
 }
 
@@ -129,6 +142,7 @@ export async function createSunSDK(options: SdkRuntimeOptions = {}): Promise<Cli
   const sdk = await SunSDK.create({
     network,
     runtime,
+    endpoints: { router: getCliRouterEndpoint(network) },
   })
   if (!sdk.runtime) {
     throw new Error('SUN SDK runtime initialization failed')
