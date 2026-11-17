@@ -36,7 +36,7 @@ describe('public SUN SDK dependency boundary', () => {
     ]
 
     for (const name of sdkPackages) {
-      expect(dependencies[name]).toBe('0.1.1-beta.3')
+      expect(dependencies[name]).toBe('0.0.0-next.1794904196141.g883d1877')
     }
   })
 })
